@@ -968,6 +968,93 @@
             }
         });
         
+        function calculateRelevanceScore(job, searchTerm) {
+            let score = 0;
+            if (!searchTerm || !searchTerm.trim()) return 0;
+            
+            const title = (job.title || '').toLowerCase().trim();
+            const description = (job.description || '').toLowerCase().trim();
+            const company = (job.company || '').toLowerCase().trim();
+            const search = searchTerm.toLowerCase().trim();
+            
+            // Split search term into words, filter out common stop words
+            const stopWords = new Set(['and', 'or', 'the', 'a', 'an', 'in', 'at', 'for', 'with', 'by', 'to', 'of', 'from']);
+            const searchWords = search.split(/[\s,\-]+/).filter(word => 
+                word.length > 1 && !stopWords.has(word)
+            );
+            
+            if (searchWords.length === 0) return 0;
+            
+            // 1. Exact title match (highest score)
+            if (title === search) {
+                score += 100;
+            }
+            
+            // 2. Title contains full search phrase
+            if (title.includes(search)) {
+                score += 80;
+            }
+            
+            // 3. All search words in title (high score)
+            const titleWords = title.split(/[\s,\-]+/);
+            const titleWordsMatched = searchWords.filter(searchWord => 
+                titleWords.some(titleWord => titleWord.includes(searchWord) || searchWord.includes(titleWord))
+            );
+            
+            if (titleWordsMatched.length === searchWords.length) {
+                score += 60; // All words found
+            } else if (titleWordsMatched.length > 0) {
+                score += (titleWordsMatched.length / searchWords.length) * 40; // Partial match
+            }
+            
+            // 4. Individual word matches in title (position matters)
+            searchWords.forEach((searchWord, index) => {
+                titleWords.forEach((titleWord, titleIndex) => {
+                    if (titleWord.includes(searchWord)) {
+                        // Earlier position in title = higher score
+                        const positionBonus = Math.max(0, 10 - titleIndex * 2);
+                        score += 15 + positionBonus;
+                    } else if (searchWord.includes(titleWord) && titleWord.length > 2) {
+                        score += 8; // Partial word match
+                    }
+                });
+            });
+            
+            // 5. Description matches (lower weight)
+            if (description) {
+                searchWords.forEach(searchWord => {
+                    // Count occurrences in description
+                    const regex = new RegExp(searchWord, 'gi');
+                    const matches = description.match(regex);
+                    if (matches) {
+                        score += Math.min(matches.length * 5, 20); // Cap at 20 points per word
+                    }
+                });
+                
+                // Bonus for search phrase in description
+                if (description.includes(search)) {
+                    score += 15;
+                }
+            }
+            
+            // 6. Company name relevance (small bonus)
+            if (company) {
+                searchWords.forEach(searchWord => {
+                    if (company.includes(searchWord)) {
+                        score += 5;
+                    }
+                });
+            }
+            
+            // 7. Job type matching bonus
+            const jobType = (job.job_type || '').toLowerCase();
+            if (jobType && (search.includes(jobType) || jobType.includes('full') && search.includes('full'))) {
+                score += 8;
+            }
+            
+            return Math.round(score);
+        }
+
         function filterJobsBySalary(jobs, maxSalary) {
             if (!maxSalary || maxSalary <= 0) {
                 return jobs; // No filter applied
@@ -1005,6 +1092,36 @@
             
             if (salaryFilteredCount > 0) {
                 console.log(`Salary filter: ${salaryFilteredCount} jobs filtered out (max salary: $${maxSalary.toLocaleString()})`);
+            }
+            
+            // Calculate relevance scores and sort by relevance
+            const searchTerm = result.search_params?.search_term || '';
+            if (searchTerm && searchTerm.trim()) {
+                console.log(`Calculating relevance scores for search term: "${searchTerm}"`);
+                
+                salaryFilteredJobs.forEach(job => {
+                    job.relevanceScore = calculateRelevanceScore(job, searchTerm);
+                });
+                
+                // Sort by relevance score (highest first), then by date if available
+                salaryFilteredJobs.sort((a, b) => {
+                    if (a.relevanceScore !== b.relevanceScore) {
+                        return b.relevanceScore - a.relevanceScore;
+                    }
+                    // Secondary sort by date_posted if relevance scores are equal
+                    if (a.date_posted && b.date_posted) {
+                        return new Date(b.date_posted) - new Date(a.date_posted);
+                    }
+                    return 0;
+                });
+                
+                console.log(`Top 5 most relevant jobs:`, 
+                    salaryFilteredJobs.slice(0, 5).map(job => ({
+                        title: job.title,
+                        company: job.company,
+                        score: job.relevanceScore
+                    }))
+                );
             }
             
             // Filter out already saved jobs (unless this is filtered AI results)
@@ -1107,21 +1224,50 @@
             let html = `
                 <div class="results">
                     <div class="results-header">
-                        <div class="results-count">Showing ${jobsToDisplay.length} new jobs</div>
+                        <div class="results-count">Showing ${jobsToDisplay.length} new jobs${searchTerm ? ' (sorted by relevance)' : ''}</div>
                         <div style="font-size: 0.9rem; color: #666;">
                             Search completed at ${new Date(result.timestamp).toLocaleString()}
+                            ${searchTerm ? '<br>🎯 Jobs ranked by relevance to your search term' : ''}
                         </div>
                     </div>
                     ${searchSummary}
             `;
             
             jobsToDisplay.forEach((job, index) => {
+                // Generate relevance indicator if score exists
+                let relevanceIndicator = '';
+                if (job.relevanceScore !== undefined && job.relevanceScore > 0) {
+                    const score = job.relevanceScore;
+                    let scoreColor, scoreText;
+                    
+                    if (score >= 80) {
+                        scoreColor = '#22543d'; // Dark green
+                        scoreText = 'Excellent Match';
+                    } else if (score >= 60) {
+                        scoreColor = '#2d3748'; // Dark gray
+                        scoreText = 'Good Match';
+                    } else if (score >= 40) {
+                        scoreColor = '#744210'; // Dark yellow
+                        scoreText = 'Fair Match';
+                    } else {
+                        scoreColor = '#742a2a'; // Dark red
+                        scoreText = 'Weak Match';
+                    }
+                    
+                    relevanceIndicator = `
+                        <div style="background: ${scoreColor}; color: white; padding: 4px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: 600; display: inline-block;">
+                            🎯 ${scoreText} (${score})
+                        </div>
+                    `;
+                }
+                
                 html += `
                     <div class="job-card">
                         <div class="job-header">
                             <div>
                                 <div class="job-title">${escapeHtml(job.title || 'No title')}</div>
                                 <div class="job-company">${escapeHtml(job.company || 'Unknown company')}</div>
+                                ${relevanceIndicator}
                             </div>
                         </div>
                         
