@@ -1,0 +1,8 @@
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+python-jobspy==1.1.79
+pandas==2.1.4
+pydantic==2.5.0
+requests==2.31.0
+openai==1.51.2
+python-dotenv==1.0.0 

@@ -1,0 +1,1901 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JobSpy Web Interface</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .header p {
+            font-size: 1.2rem;
+            opacity: 0.9;
+        }
+
+        .main-content {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+
+        /* Tab Navigation Styles */
+        .tab-navigation {
+            display: flex;
+            background: #f8f9ff;
+            border-bottom: 2px solid #e0e6ed;
+        }
+
+        .tab-button {
+            flex: 1;
+            padding: 20px;
+            border: none;
+            background: transparent;
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #4a5568;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border-bottom: 3px solid transparent;
+            position: relative;
+        }
+
+        .tab-button:hover {
+            background: rgba(102, 126, 234, 0.1);
+            color: #667eea;
+        }
+
+        .tab-button.active {
+            color: #667eea;
+            border-bottom-color: #667eea;
+            background: rgba(102, 126, 234, 0.05);
+        }
+
+        .tab-button .tab-icon {
+            margin-right: 10px;
+            font-size: 1.2rem;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .search-form {
+            padding: 30px;
+            background: #f8f9ff;
+            border-bottom: 1px solid #e0e6ed;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .form-group label {
+            font-weight: 600;
+            margin-bottom: 5px;
+            color: #4a5568;
+        }
+
+        .form-group input,
+        .form-group select {
+            padding: 12px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .checkbox-group input[type="checkbox"] {
+            width: auto;
+        }
+
+        .multi-select {
+            background: white;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 10px;
+            max-height: 120px;
+            overflow-y: auto;
+        }
+
+        .site-option {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 5px 0;
+        }
+
+        .search-button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            margin: 20px auto;
+            display: block;
+        }
+
+        .search-button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .search-button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #667eea;
+            font-size: 18px;
+        }
+
+        .loading::after {
+            content: '...';
+            animation: dots 1.5s steps(5, end) infinite;
+        }
+
+        @keyframes dots {
+            0%, 20% { content: '.'; }
+            40% { content: '..'; }
+            60% { content: '...'; }
+            90%, 100% { content: ''; }
+        }
+
+        /* AI Filtering Styles */
+        .ai-filter-panel {
+            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+            border: 2px solid #cbd5e0;
+            border-radius: 12px;
+            padding: 25px;
+            margin-top: 25px;
+            display: none;
+        }
+
+        .ai-filter-panel.show {
+            display: block;
+            animation: slideDown 0.3s ease-out;
+        }
+
+        @keyframes slideDown {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .ai-panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #cbd5e0;
+        }
+
+        .ai-panel-title {
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: #2d3748;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .ai-form-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .ai-form-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .ai-form-group label {
+            font-weight: 600;
+            color: #4a5568;
+            margin-bottom: 8px;
+            font-size: 0.95rem;
+        }
+
+        .ai-form-group textarea {
+            padding: 12px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 1rem;
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        .ai-form-group textarea:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .ai-button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            justify-self: start;
+        }
+
+        .ai-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .ai-button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .ai-results {
+            margin-top: 25px;
+            padding: 20px;
+            background: white;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .ai-analysis-item {
+            background: #f7fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+
+        .ai-analysis-header {
+            font-weight: 600;
+            color: #2d3748;
+            margin-bottom: 8px;
+        }
+
+        .ai-analysis-text {
+            color: #4a5568;
+            line-height: 1.6;
+        }
+
+        .ai-filter-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            margin-left: 10px;
+        }
+
+        .ai-filter-badge.pass {
+            background: #c6f6d5;
+            color: #22543d;
+        }
+
+        .ai-filter-badge.fail {
+            background: #fed7d7;
+            color: #742a2a;
+        }
+
+        .example-prompts {
+            background: #edf2f7;
+            border-radius: 6px;
+            padding: 12px;
+            margin-top: 8px;
+            font-size: 0.9rem;
+        }
+
+        .example-prompts strong {
+            color: #2d3748;
+        }
+
+        .example-prompts div {
+            margin: 4px 0;
+            color: #4a5568;
+        }
+
+        .results {
+            padding: 30px;
+        }
+
+        .results-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        .results-count {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #2d3748;
+        }
+
+        .job-card {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 15px;
+            transition: box-shadow 0.3s ease, transform 0.2s ease;
+        }
+
+        .job-card:hover {
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            transform: translateY(-2px);
+        }
+
+        .job-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 15px;
+        }
+
+        .job-title {
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: #2d3748;
+            margin-bottom: 5px;
+        }
+
+        .job-company {
+            font-size: 1.1rem;
+            color: #667eea;
+            font-weight: 600;
+        }
+
+        .job-details {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .job-detail {
+            background: #f7fafc;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 0.9rem;
+        }
+
+        .job-detail strong {
+            color: #4a5568;
+        }
+
+        .job-description {
+            background: #f8f9ff;
+            padding: 15px;
+            border-radius: 6px;
+            border-left: 4px solid #667eea;
+            margin-top: 15px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .job-links {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .job-link {
+            background: #667eea;
+            color: white;
+            text-decoration: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            transition: background 0.3s ease;
+        }
+
+        .job-link:hover {
+            background: #5a67d8;
+        }
+
+        /* Save Job Button Styles */
+        .save-job-btn {
+            background: #48bb78;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .save-job-btn:hover:not(:disabled) {
+            background: #38a169;
+            transform: translateY(-1px);
+            box-shadow: 0 3px 10px rgba(72, 187, 120, 0.3);
+        }
+
+        .save-job-btn:disabled {
+            background: #a0aec0;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .save-job-btn.saved {
+            background: #e53e3e;
+        }
+
+        .save-job-btn.saved:hover {
+            background: #c53030;
+        }
+
+        /* Saved Jobs Specific Styles */
+        .saved-jobs-container {
+            padding: 30px;
+        }
+
+        .saved-job-card {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 15px;
+            transition: box-shadow 0.3s ease, transform 0.2s ease;
+            border-left: 4px solid #48bb78;
+        }
+
+        .saved-job-card:hover {
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            transform: translateY(-2px);
+        }
+
+        .saved-job-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 15px;
+            font-size: 0.9rem;
+            color: #666;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .saved-job-meta > div:first-child {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .saved-date {
+            font-weight: 500;
+        }
+
+        .saved-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .remove-job-btn {
+            background: #e53e3e;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: background 0.3s ease;
+        }
+
+        .remove-job-btn:hover {
+            background: #c53030;
+        }
+
+        .notes-section {
+            background: #f7fafc;
+            padding: 12px;
+            border-radius: 6px;
+            margin-top: 15px;
+            border-left: 3px solid #667eea;
+        }
+
+        .notes-input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #e2e8f0;
+            border-radius: 4px;
+            font-size: 0.9rem;
+            resize: vertical;
+            min-height: 60px;
+        }
+
+        .notes-input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.1);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #718096;
+        }
+
+        .empty-state-icon {
+            font-size: 4rem;
+            margin-bottom: 20px;
+            opacity: 0.5;
+        }
+
+        .empty-state h3 {
+            font-size: 1.5rem;
+            margin-bottom: 10px;
+            color: #4a5568;
+        }
+
+        .empty-state p {
+            font-size: 1.1rem;
+            line-height: 1.6;
+        }
+
+        .error {
+            background: #fed7d7;
+            color: #c53030;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border-left: 4px solid #e53e3e;
+        }
+
+        .success {
+            background: #c6f6d5;
+            color: #22543d;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border-left: 4px solid #38a169;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+            }
+
+            .header h1 {
+                font-size: 2rem;
+            }
+
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .job-header {
+                flex-direction: column;
+                gap: 10px;
+            }
+
+            .job-details {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔍 JobSpy Web Interface</h1>
+            <p>Search jobs across multiple platforms with one powerful tool</p>
+        </div>
+
+        <div class="main-content">
+            <!-- Tab Navigation -->
+            <div class="tab-navigation">
+                <button class="tab-button active" data-tab="search">
+                    <span class="tab-icon">🔍</span>
+                    Search Jobs
+                </button>
+                <button class="tab-button" data-tab="saved">
+                    <span class="tab-icon">💾</span>
+                    Saved Jobs (<span id="saved-count">0</span>)
+                </button>
+            </div>
+
+            <!-- Search Tab Content -->
+            <div id="search-tab" class="tab-content active">
+                <form id="job-search-form" class="search-form">
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="search-term">Job Title/Role *</label>
+                        <input type="text" id="search-term" name="search_term" required placeholder="e.g., Product Manager, Software Engineer">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="company-filter">Company Filter (Optional)</label>
+                        <input type="text" id="company-filter" name="company_filter" value="" placeholder="e.g., Google, Apple, Microsoft">
+                        <small style="color: #666; font-size: 0.85rem; margin-top: 4px; display: block;">
+                            🎯 <strong>Search specific companies:</strong> Use commas to search multiple (e.g., "Google, Apple, Microsoft")<br>
+                            💡 <strong>Leave empty to see ALL companies</strong>
+                        </small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="location">Location</label>
+                        <input type="text" id="location" name="location" value="USA">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="results-wanted">Number of Results</label>
+                        <input type="number" id="results-wanted" name="results_wanted" value="1000" min="1" max="1000">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="distance">Distance (miles)</label>
+                        <input type="number" id="distance" name="distance" value="50" min="1" max="200">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="job-type">Job Type</label>
+                        <select id="job-type" name="job_type">
+                            <option value="">All Types</option>
+                            <option value="fulltime">Full Time</option>
+                            <option value="parttime">Part Time</option>
+                            <option value="internship">Internship</option>
+                            <option value="contract">Contract</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="country-indeed">Country (Indeed/Glassdoor)</label>
+                        <select id="country-indeed" name="country_indeed">
+                            <option value="USA">USA</option>
+                            <option value="Canada">Canada</option>
+                            <option value="UK">UK</option>
+                            <option value="Australia">Australia</option>
+                            <option value="Germany">Germany</option>
+                            <option value="France">France</option>
+                            <option value="India">India</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="hours-old">Hours Since Posted</label>
+                        <input type="number" id="hours-old" name="hours_old" value="10000" placeholder="e.g., 24">
+                    </div>
+
+                    <div class="form-group">
+                        <div class="checkbox-group">
+                            <input type="checkbox" id="is-remote" name="is_remote">
+                            <label for="is-remote">Remote Jobs Only</label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Job Sites to Search</label>
+                    <div class="multi-select">
+                        <div class="site-option">
+                            <input type="checkbox" id="site-indeed" name="site_name" value="indeed" checked>
+                            <label for="site-indeed">Indeed (Best performance, no rate limiting)</label>
+                        </div>
+                        <div class="site-option">
+                            <input type="checkbox" id="site-linkedin" name="site_name" value="linkedin">
+                            <label for="site-linkedin">LinkedIn (May require rate limiting)</label>
+                        </div>
+                        <div class="site-option">
+                            <input type="checkbox" id="site-glassdoor" name="site_name" value="glassdoor">
+                            <label for="site-glassdoor">Glassdoor</label>
+                        </div>
+                        <div class="site-option">
+                            <input type="checkbox" id="site-ziprecruiter" name="site_name" value="zip_recruiter">
+                            <label for="site-ziprecruiter">ZipRecruiter (US/Canada only)</label>
+                        </div>
+                        <div class="site-option">
+                            <input type="checkbox" id="site-google" name="site_name" value="google">
+                            <label for="site-google">Google Jobs</label>
+                        </div>
+                        <div class="site-option">
+                            <input type="checkbox" id="site-bayt" name="site_name" value="bayt">
+                            <label for="site-bayt">Bayt (International)</label>
+                        </div>
+                        <div class="site-option">
+                            <input type="checkbox" id="site-naukri" name="site_name" value="naukri">
+                            <label for="site-naukri">Naukri (India)</label>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="display: flex; gap: 10px; justify-content: center; margin: 20px 0;">
+                    <button type="submit" class="search-button" id="search-btn">
+                        🚀 Search Jobs
+                    </button>
+                </div>
+            </form>
+
+            <div id="results-container"></div>
+            
+            <!-- AI Filtering Panel -->
+            <div id="ai-filter-panel" class="ai-filter-panel">
+                <div class="ai-panel-header">
+                    <div class="ai-panel-title">
+                        🤖 AI-Powered Job Analysis & Filtering
+                    </div>
+                </div>
+                
+                <div class="ai-form-grid">
+                    <!-- API Key Input Field -->
+                    <div class="ai-form-group">
+                        <label for="openai-api-key">OpenAI API Key *</label>
+                        <input type="password" id="openai-api-key" placeholder="sk-..." autocomplete="off" style="font-family:monospace; padding: 12px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 1rem;">
+                        <small style="color: #666; font-size: 0.85rem; margin-top: 4px; display: block;">
+                            🔒 Your API key is only stored in your browser and sent securely with each AI request.<br>
+                            <strong>Never share your key publicly.</strong>
+                        </small>
+                    </div>
+                    
+                    <div class="ai-form-group">
+                        <label for="analysis-prompt">Analysis Request *</label>
+                        <textarea 
+                            id="analysis-prompt" 
+                            placeholder="What do you want to analyze about each job?"
+                            required
+                        ></textarea>
+                        <div class="example-prompts">
+                            <strong>Example analysis requests:</strong>
+                            <div>• "Summarize how many years of experience this job requires"</div>
+                            <div>• "List the key technical skills mentioned"</div>
+                            <div>• "What is the salary range for this position?"</div>
+                            <div>• "Is this role remote-friendly?"</div>
+                        </div>
+                    </div>
+                    
+                    <div class="ai-form-group">
+                        <label for="filter-criteria">Filter Criteria (Optional)</label>
+                        <textarea 
+                            id="filter-criteria" 
+                            placeholder="How should jobs be filtered based on the analysis?"
+                        ></textarea>
+                        <div class="example-prompts">
+                            <strong>Example filter criteria:</strong>
+                            <div>• "Show only jobs requiring 5+ years of experience"</div>
+                            <div>• "Filter for jobs mentioning Python or JavaScript"</div>
+                            <div>• "Show only jobs with salary above $100k"</div>
+                            <div>• "Keep only fully remote positions"</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div style="display: flex; gap: 15px; align-items: center;">
+                    <button type="button" id="ai-analyze-btn" class="ai-button">
+                        🧠 Analyze Jobs
+                    </button>
+                    <div id="ai-status" style="color: #666; font-size: 0.9rem;"></div>
+                </div>
+                
+                <div id="ai-results-container">                    </div>
+                </div>
+            </div>
+            </div> <!-- End Search Tab -->
+
+            <!-- Saved Jobs Tab Content -->
+            <div id="saved-tab" class="tab-content">
+                <div class="saved-jobs-container">
+                    <div class="results-header">
+                        <div class="results-count" id="saved-jobs-count">Loading saved jobs...</div>
+                        <button id="refresh-saved-btn" class="search-button" style="padding: 10px 20px; font-size: 0.9rem;">
+                            🔄 Refresh
+                        </button>
+                    </div>
+                    <div id="saved-jobs-container">
+                        <!-- Saved jobs will be loaded here -->
+                    </div>
+                </div>
+            </div>
+        </div> <!-- End Main Content -->
+
+    <script>
+        const API_BASE_URL = 'http://localhost:8000';
+
+        document.getElementById('job-search-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const searchBtn = document.getElementById('search-btn');
+            const resultsContainer = document.getElementById('results-container');
+            
+            // Show loading state with better messaging
+            searchBtn.disabled = true;
+            searchBtn.textContent = '🔄 Searching...';
+            
+            // Check if multi-company search for better loading message
+            const companyFilter = document.getElementById('company-filter').value.trim();
+            const isMultiCompany = companyFilter && companyFilter.includes(',');
+            const loadingMessage = isMultiCompany 
+                ? `Searching multiple companies: ${companyFilter.split(',').map(c => c.trim()).join(', ')}`
+                : 'Searching for jobs';
+            
+            resultsContainer.innerHTML = `<div class="loading">${loadingMessage}</div>`;
+            
+            try {
+                // Load saved jobs first to ensure filtering works
+                await loadSavedJobs();
+                // Collect form data
+                const formData = new FormData(e.target);
+                const searchData = {};
+                
+                // Handle regular form fields
+                for (let [key, value] of formData.entries()) {
+                    if (key !== 'site_name' && value.trim() !== '') {
+                        if (key === 'results_wanted' || key === 'distance' || key === 'hours_old') {
+                            searchData[key] = parseInt(value);
+                        } else if (key === 'is_remote') {
+                            searchData[key] = true;
+                        } else {
+                            searchData[key] = value;
+                        }
+                    }
+                }
+                
+                // Only include company_filter if it's not empty
+                const companyFilter = document.getElementById('company-filter').value.trim();
+                if (companyFilter) {
+                    searchData.company_filter = companyFilter;
+                }
+                // Don't send company_filter at all if it's empty
+                
+                // Handle site_name checkboxes
+                const siteCheckboxes = document.querySelectorAll('input[name="site_name"]:checked');
+                if (siteCheckboxes.length > 0) {
+                    searchData.site_name = Array.from(siteCheckboxes).map(cb => cb.value);
+                }
+                
+                console.log('Search data:', searchData);
+                
+                // Make API request
+                const response = await fetch(`${API_BASE_URL}/search-jobs`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(searchData)
+                });
+                
+                const result = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(result.detail || 'Search failed');
+                }
+                
+                displayResults(result);
+                
+            } catch (error) {
+                console.error('Search error:', error);
+                resultsContainer.innerHTML = `
+                    <div class="error">
+                        <strong>Search Error:</strong> ${error.message}
+                        <br><br>
+                        <small>Make sure the backend server is running on ${API_BASE_URL}</small>
+                    </div>
+                `;
+            } finally {
+                // Reset button state
+                searchBtn.disabled = false;
+                searchBtn.textContent = '🚀 Search Jobs';
+            }
+        });
+        
+        function displayResults(result) {
+            const container = document.getElementById('results-container');
+            
+            if (!result.success) {
+                container.innerHTML = `<div class="error">${result.message}</div>`;
+                return;
+            }
+            
+            // First, remove duplicates from the search results
+            let uniqueJobs = removeDuplicateJobs(result.jobs);
+            let duplicatesRemoved = result.jobs.length - uniqueJobs.length;
+            
+            console.log(`Search Results: ${result.jobs.length} total, ${uniqueJobs.length} unique (${duplicatesRemoved} duplicates removed)`);
+            console.log(`Saved jobs in memory: ${savedJobs.length}`);
+            
+            // Filter out already saved jobs (unless this is filtered AI results)
+            let jobsToDisplay = uniqueJobs;
+            let originalCount = result.job_count;
+            let filteredOutCount = 0;
+            
+            if (!result.search_params?.filtered) {
+                jobsToDisplay = uniqueJobs.filter(job => {
+                    const isSaved = isJobSaved(job);
+                    if (isSaved) {
+                        console.log(`Filtering out saved job: ${job.title} at ${job.company}`);
+                    }
+                    return !isSaved;
+                });
+                filteredOutCount = uniqueJobs.length - jobsToDisplay.length;
+                console.log(`Final display: ${jobsToDisplay.length} jobs (${filteredOutCount} saved jobs filtered out)`);
+            }
+            
+            if (jobsToDisplay.length === 0) {
+                const message = originalCount > 0 
+                    ? "All found jobs are already in your saved collection! Try different search criteria to find new opportunities."
+                    : "No jobs found matching your criteria. Try adjusting your search parameters.";
+                    
+                container.innerHTML = `
+                    <div class="success">
+                        <strong>Search completed!</strong><br>
+                        ${message}
+                    </div>
+                `;
+                return;
+            }
+            
+            // Show search summary
+            const searchParams = result.search_params || {};
+            let searchSummary = '';
+            
+            // Add filtering info if jobs were filtered out
+            let filterInfo = '';
+            if (duplicatesRemoved > 0 || filteredOutCount > 0) {
+                let notes = [];
+                if (duplicatesRemoved > 0) {
+                    notes.push(`${duplicatesRemoved} duplicate jobs removed`);
+                }
+                if (filteredOutCount > 0) {
+                    notes.push(`${filteredOutCount} already saved jobs hidden`);
+                }
+                filterInfo = `<br><strong>📋 Note:</strong> ${notes.join(', ')}`;
+            }
+            
+            if (searchParams.company_filter) {
+                // Check if multiple companies were searched
+                const isMultiCompany = searchParams.company_filter.includes(',') || 
+                                      (searchParams.companies_searched && searchParams.companies_searched.length > 1);
+                
+                let companyInfo = "";
+                if (isMultiCompany) {
+                    const companies = searchParams.companies_searched || searchParams.company_filter.split(',').map(c => c.trim());
+                    companyInfo = `<strong>at companies:</strong> ${companies.join(', ')}`;
+                    
+                    // Add success/failure info for multi-company searches
+                    if (searchParams.successful_companies || searchParams.failed_companies) {
+                        let statusInfo = "";
+                        if (searchParams.successful_companies && searchParams.successful_companies.length > 0) {
+                            statusInfo += `<br><span style="color: #22543d;">✅ Found jobs at: ${searchParams.successful_companies.join(', ')}</span>`;
+                        }
+                        if (searchParams.failed_companies && searchParams.failed_companies.length > 0) {
+                            statusInfo += `<br><span style="color: #c53030;">❌ No results from: ${searchParams.failed_companies.join(', ')}</span>`;
+                        }
+                        companyInfo += statusInfo;
+                    }
+                } else {
+                    companyInfo = `<strong>at</strong> "${searchParams.company_filter}"`;
+                }
+                
+                searchSummary = `<div style="background: #e6f3ff; padding: 10px; border-radius: 6px; margin-bottom: 15px; font-size: 0.9rem;">
+                    <strong>🎯 Search:</strong> "${searchParams.search_term || 'Unknown'}" ${companyInfo}
+                    ${filterInfo}
+                </div>`;
+            } else {
+                searchSummary = `<div style="background: #f0f8ff; padding: 10px; border-radius: 6px; margin-bottom: 15px; font-size: 0.9rem;">
+                    <strong>🔍 Search:</strong> "${searchParams.search_term || 'Unknown'}" 
+                    <strong>(All companies)</strong>
+                    ${filterInfo}
+                </div>`;
+            }
+            
+            let html = `
+                <div class="results">
+                    <div class="results-header">
+                        <div class="results-count">Showing ${jobsToDisplay.length} new jobs</div>
+                        <div style="font-size: 0.9rem; color: #666;">
+                            Search completed at ${new Date(result.timestamp).toLocaleString()}
+                        </div>
+                    </div>
+                    ${searchSummary}
+            `;
+            
+            jobsToDisplay.forEach((job, index) => {
+                html += `
+                    <div class="job-card">
+                        <div class="job-header">
+                            <div>
+                                <div class="job-title">${escapeHtml(job.title || 'No title')}</div>
+                                <div class="job-company">${escapeHtml(job.company || 'Unknown company')}</div>
+                            </div>
+                        </div>
+                        
+                        <div class="job-details">
+                            ${job.company ? `<div class="job-detail" style="background: #e8f5e8;"><strong>Company:</strong> ${escapeHtml(job.company)}</div>` : ''}
+                            ${job.site ? `<div class="job-detail"><strong>Site:</strong> ${escapeHtml(job.site)}</div>` : ''}
+                            ${job.location ? `<div class="job-detail"><strong>Location:</strong> ${escapeHtml(job.location)}</div>` : ''}
+                            ${job.job_type ? `<div class="job-detail"><strong>Type:</strong> ${escapeHtml(job.job_type)}</div>` : ''}
+                            ${job.is_remote ? `<div class="job-detail"><strong>Remote:</strong> Yes</div>` : ''}
+                            ${job.date_posted ? `<div class="job-detail"><strong>Posted:</strong> ${escapeHtml(job.date_posted)}</div>` : ''}
+                            ${(job.min_amount || job.max_amount) ? `<div class="job-detail"><strong>Salary:</strong> ${formatSalary(job)}</div>` : ''}
+                        </div>
+                        
+                        ${job.description ? `
+                            <div class="job-description">
+                                <strong>Description:</strong><br>
+                                ${truncateDescription(job.description)}
+                            </div>
+                        ` : ''}
+                        
+                        <div class="job-links">
+                            ${job.job_url_direct ? `<a href="${job.job_url_direct}" target="_blank" class="job-link">View Job</a>` : (job.job_url ? `<a href="${job.job_url}" target="_blank" class="job-link">View Job</a>` : '')}
+                            ${job.company_url ? `<a href="${job.company_url}" target="_blank" class="job-link">Company Page</a>` : ''}
+                            <button onclick="handleSaveJob(${index})" class="save-job-btn" id="save-btn-${index}">💾 Save Job</button>
+                            ${job.description ? `<button class="job-link" onclick="openDescriptionModal(${index})" type="button">📄 View Description</button>` : ''}
+                            <button onclick="markNotInterestedFromSearch(${index})" class="job-link" style="background: #e53e3e; color: white;">🚫 Not Interested</button>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            html += '</div>';
+            container.innerHTML = html;
+            
+            // Show AI filtering panel if jobs found
+            if (jobsToDisplay.length > 0) {
+                showAIPanel(jobsToDisplay);
+                // Update save button states based on already saved jobs
+                setTimeout(updateSaveButtonStates, 100);
+            }
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        function formatSalary(job) {
+            let salary = '';
+            if (job.min_amount && job.max_amount) {
+                salary = `$${job.min_amount.toLocaleString()} - $${job.max_amount.toLocaleString()}`;
+            } else if (job.min_amount) {
+                salary = `$${job.min_amount.toLocaleString()}+`;
+            } else if (job.max_amount) {
+                salary = `Up to $${job.max_amount.toLocaleString()}`;
+            }
+            
+            if (salary && job.interval) {
+                salary += ` (${job.interval})`;
+            }
+            
+            return salary || 'Not specified';
+        }
+        
+        function truncateDescription(description) {
+            if (!description) return '';
+            
+            // Strip HTML tags and limit length
+            const text = description.replace(/<[^>]*>/g, '');
+            if (text.length <= 300) return escapeHtml(text);
+            
+            return escapeHtml(text.substring(0, 300) + '...');
+        }
+        
+        function removeDuplicateJobs(jobs) {
+            const seen = new Set();
+            const unique = [];
+            
+            for (const job of jobs) {
+                // Create a unique identifier based on multiple fields
+                const identifier = `${(job.title || '').toLowerCase().trim()}-${(job.company || '').toLowerCase().trim()}-${(job.location || '').toLowerCase().trim()}`;
+                
+                // Also check by job URL if available
+                const urlIdentifier = job.job_url || job.job_url_direct;
+                
+                if (!seen.has(identifier) && (!urlIdentifier || !seen.has(urlIdentifier))) {
+                    seen.add(identifier);
+                    if (urlIdentifier) {
+                        seen.add(urlIdentifier);
+                    }
+                    unique.push(job);
+                }
+            }
+            
+            return unique;
+        }
+        
+        // Global variable to store current jobs for AI filtering
+        let currentJobs = [];
+        
+        // Global variable to store saved jobs
+        let savedJobs = [];
+        
+        // AI Filtering Functions
+        function showAIPanel(jobs) {
+            currentJobs = jobs;
+            const aiPanel = document.getElementById('ai-filter-panel');
+            aiPanel.classList.add('show');
+            
+            // Add example prompts based on job search
+            updateExamplePrompts();
+        }
+        
+        function updateExamplePrompts() {
+            const analysisPrompt = document.getElementById('analysis-prompt');
+            const filterCriteria = document.getElementById('filter-criteria');
+            
+            // Set default values if empty
+            if (!analysisPrompt.value) {
+                analysisPrompt.value = "Summarize how many years of experience this job requires";
+            }
+            if (!filterCriteria.value) {
+                filterCriteria.value = "Show only jobs requiring 5+ years of experience";
+            }
+        }
+        
+        // AI Analysis Event Listener
+        document.getElementById('ai-analyze-btn').addEventListener('click', async () => {
+            const analysisPrompt = document.getElementById('analysis-prompt').value.trim();
+            const filterCriteria = document.getElementById('filter-criteria').value.trim();
+            const apiKeyInput = document.getElementById('openai-api-key');
+            const apiKey = apiKeyInput.value.trim();
+            const analyzeBtn = document.getElementById('ai-analyze-btn');
+            const statusDiv = document.getElementById('ai-status');
+            const resultsContainer = document.getElementById('ai-results-container');
+            
+            if (!analysisPrompt) {
+                alert('Please enter an analysis request.');
+                return;
+            }
+            
+            if (!apiKey) {
+                alert('Please enter your OpenAI API key.');
+                apiKeyInput.focus();
+                return;
+            }
+            
+            // Validate API key format (should start with sk- for OpenAI)
+            if (!apiKey.startsWith('sk-')) {
+                alert('Invalid API key format. OpenAI API keys should start with "sk-"');
+                apiKeyInput.focus();
+                return;
+            }
+            
+            if (currentJobs.length === 0) {
+                alert('No jobs available for analysis. Please search for jobs first.');
+                return;
+            }
+            
+            // Store API key in localStorage for convenience
+            localStorage.setItem('openai_api_key', apiKey);
+            
+            // Show loading state
+            analyzeBtn.disabled = true;
+            analyzeBtn.innerHTML = '🔄 Analyzing...';
+            statusDiv.textContent = `Analyzing ${currentJobs.length} jobs with AI...`;
+            resultsContainer.innerHTML = '<div class="loading">AI is analyzing your jobs</div>';
+            
+            try {
+                const requestData = {
+                    jobs: currentJobs,
+                    analysis_prompt: analysisPrompt,
+                    filter_criteria: filterCriteria || null
+                };
+                
+                console.log('AI Filter Request:', requestData);
+                
+                // Ensure API key only contains valid ASCII characters
+                const cleanApiKey = apiKey.replace(/[^\x20-\x7E]/g, '').trim();
+                
+                if (!cleanApiKey || cleanApiKey.length < 10) {
+                    throw new Error('API key contains invalid characters or is too short. Please check your API key.');
+                }
+                
+                const response = await fetch(`${API_BASE_URL}/ai-filter-jobs`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-OpenAI-API-Key': cleanApiKey
+                    },
+                    body: JSON.stringify(requestData)
+                });
+                
+                const result = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(result.detail || 'AI analysis failed');
+                }
+                
+                displayAIResults(result);
+                
+            } catch (error) {
+                console.error('AI Analysis error:', error);
+                resultsContainer.innerHTML = `
+                    <div class="error">
+                        <strong>AI Analysis Error:</strong> ${error.message}
+                        <br><br>
+                        <small>Make sure you have entered a valid OpenAI API key.</small>
+                    </div>
+                `;
+                statusDiv.textContent = 'Analysis failed';
+            } finally {
+                // Reset button state
+                analyzeBtn.disabled = false;
+                analyzeBtn.innerHTML = '🧠 Analyze Jobs';
+            }
+        });
+        
+        function displayAIResults(result) {
+            const container = document.getElementById('ai-results-container');
+            const statusDiv = document.getElementById('ai-status');
+            
+            if (!result.success) {
+                container.innerHTML = `<div class="error">${result.message}</div>`;
+                return;
+            }
+            
+            statusDiv.textContent = result.message;
+            
+            let html = `
+                <div class="ai-results">
+                    <h3 style="margin-top: 0; color: #2d3748;">AI Analysis Results</h3>
+            `;
+            
+            // Show analysis results
+            if (result.analyzed_jobs && result.analyzed_jobs.length > 0) {
+                html += `<div style="margin-bottom: 20px;">`;
+                
+                result.analyzed_jobs.forEach((analysis, index) => {
+                    const badgeClass = analysis.meets_criteria === true ? 'pass' : 
+                                     analysis.meets_criteria === false ? 'fail' : '';
+                    const badgeText = analysis.meets_criteria === true ? 'PASS' : 
+                                    analysis.meets_criteria === false ? 'FAIL' : '';
+                    
+                    html += `
+                        <div class="ai-analysis-item">
+                            <div class="ai-analysis-header">
+                                ${escapeHtml(analysis.job_title)} at ${escapeHtml(analysis.job_company)}
+                                ${badgeText ? `<span class="ai-filter-badge ${badgeClass}">${badgeText}</span>` : ''}
+                            </div>
+                            <div class="ai-analysis-text">${escapeHtml(analysis.analysis_result)}</div>
+                        </div>
+                    `;
+                });
+                
+                html += `</div>`;
+            }
+            
+            // Show filtered results if available
+            if (result.filtered_jobs && result.filtered_count !== null) {
+                html += `
+                    <div style="background: #e6f3ff; padding: 15px; border-radius: 8px; margin-top: 20px;">
+                        <h4 style="margin: 0 0 10px 0; color: #2d3748;">🎯 Filtered Results</h4>
+                        <p style="margin: 0; color: #4a5568;">
+                            ${result.filtered_count} out of ${result.original_count} jobs met your criteria.
+                        </p>
+                        ${result.filtered_count > 0 ? `
+                            <button 
+                                onclick="showFilteredJobs(${JSON.stringify(result.filtered_jobs).replace(/"/g, '&quot;')})" 
+                                class="ai-button" 
+                                style="margin-top: 10px; padding: 8px 16px; font-size: 0.9rem;"
+                            >
+                                📋 View Filtered Jobs
+                            </button>
+                        ` : ''}
+                    </div>
+                `;
+            }
+            
+            html += '</div>';
+            container.innerHTML = html;
+        }
+        
+        function showFilteredJobs(filteredJobs) {
+            const fakeResult = {
+                success: true,
+                job_count: filteredJobs.length,
+                jobs: filteredJobs,
+                search_params: { filtered: true },
+                timestamp: new Date().toISOString(),
+                message: `Showing ${filteredJobs.length} AI-filtered jobs`
+            };
+            
+            // Update the main results display with filtered jobs
+            displayResults(fakeResult);
+            
+            // Scroll to top of results
+            document.getElementById('results-container').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        // Tab Management Functions
+        function initializeTabs() {
+            const tabButtons = document.querySelectorAll('.tab-button');
+            const tabContents = document.querySelectorAll('.tab-content');
+
+            tabButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    const targetTab = button.dataset.tab;
+                    
+                    // Update button states
+                    tabButtons.forEach(btn => btn.classList.remove('active'));
+                    button.classList.add('active');
+                    
+                    // Update content visibility
+                    tabContents.forEach(content => content.classList.remove('active'));
+                    document.getElementById(`${targetTab}-tab`).classList.add('active');
+                    
+                    // Load saved jobs when switching to saved tab
+                    if (targetTab === 'saved') {
+                        loadSavedJobs();
+                    }
+                });
+            });
+        }
+
+        // Saved Jobs Management Functions
+        async function saveJob(jobData, notes = '') {
+            try {
+                const response = await fetch(`${API_BASE_URL}/save-job`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        job_data: jobData,
+                        notes: notes
+                    })
+                });
+                const result = await response.json();
+                // If success, or already saved and job is in savedJobs, treat as success
+                if (result.success) {
+                    await loadSavedJobs();
+                    updateSavedCount();
+                    return true;
+                } else if (
+                    result.message &&
+                    result.message.includes('already saved') &&
+                    savedJobs.some(j =>
+                        (j.job_data.job_url && j.job_data.job_url === jobData.job_url) ||
+                        (j.job_data.title === jobData.title && j.job_data.company === jobData.company)
+                    )
+                ) {
+                    // Already saved and present in savedJobs
+                    return true;
+                } else {
+                    alert(result.message);
+                    return false;
+                }
+            } catch (error) {
+                console.error('Error saving job:', error);
+                alert('Failed to save job. Please try again.');
+                return false;
+            }
+        }
+
+        async function deleteSavedJob(jobId) {
+            try {
+                const response = await fetch(`${API_BASE_URL}/saved-job/${jobId}`, {
+                    method: 'DELETE'
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    // Reload saved jobs and update save button states
+                    await loadSavedJobs();
+                    updateSaveButtonStates();
+                    return true;
+                } else {
+                    alert('Failed to remove job from saved list.');
+                    return false;
+                }
+            } catch (error) {
+                console.error('Error deleting saved job:', error);
+                alert('Failed to remove job. Please try again.');
+                return false;
+            }
+        }
+
+        // Update loadSavedJobs to use the categorized endpoint
+        async function loadSavedJobs() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/saved-jobs/categorized`);
+                const result = await response.json();
+                if (result.success) {
+                    savedJobs = [...result.saved_jobs.saved_not_applied, ...result.saved_jobs.save_for_later, ...result.saved_jobs.applied, ...result.saved_jobs.not_interested];
+                    displayCategorizedSavedJobs(result);
+                    updateSavedCount(result.counts.total);
+                    updateSaveButtonStates();
+                } else {
+                    document.getElementById('saved-jobs-container').innerHTML = `
+                        <div class="error">Failed to load saved jobs: ${result.message}</div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error loading saved jobs:', error);
+                document.getElementById('saved-jobs-container').innerHTML = `
+                    <div class="error">Failed to load saved jobs. Please check if the backend is running.</div>
+                `;
+            }
+        }
+
+        function displayCategorizedSavedJobs(result) {
+            const container = document.getElementById('saved-jobs-container');
+            const countElement = document.getElementById('saved-jobs-count');
+            const totalCount = result.counts.total;
+            const savedCount = result.counts.saved_not_applied;
+            const saveForLaterCount = result.counts.save_for_later;
+            const appliedCount = result.counts.applied;
+            const notInterestedCount = result.counts.not_interested;
+            countElement.textContent = `${totalCount} total jobs (${savedCount} saved, ${saveForLaterCount} save for later, ${appliedCount} applied, ${notInterestedCount} not interested)`;
+            if (totalCount === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📋</div>
+                        <h3>No saved jobs yet</h3>
+                        <p>Search for jobs and click the \"Save Job\" button to build your collection!</p>
+                    </div>
+                `;
+                return;
+            }
+            let html = '<div class="categorized-jobs">';
+            // Saved Jobs Section (Not Applied)
+            html += `
+                <div class="job-category">
+                    <h3 style="color: #48bb78; border-bottom: 2px solid #48bb78; padding-bottom: 10px; margin-bottom: 20px;">
+                        💾 Saved Jobs (${savedCount})
+                    </h3>
+            `;
+            if (savedCount === 0) {
+                html += `<div style="text-align: center; color: #666; padding: 20px; font-style: italic;">No saved jobs waiting for application</div>`;
+            } else {
+                result.saved_jobs.saved_not_applied.forEach(savedJob => {
+                    html += renderSavedJobCard(savedJob, 'saved');
+                });
+            }
+            html += `</div>`; // End saved jobs section
+            // Save for Later Section
+            html += `
+                <div class="job-category" style="margin-top: 40px;">
+                    <h3 style="color: #f6ad55; border-bottom: 2px solid #f6ad55; padding-bottom: 10px; margin-bottom: 20px;">
+                        🕒 Save for Later (${saveForLaterCount})
+                    </h3>
+            `;
+            if (saveForLaterCount === 0) {
+                html += `<div style="text-align: center; color: #666; padding: 20px; font-style: italic;">No jobs saved for later</div>`;
+            } else {
+                result.saved_jobs.save_for_later.forEach(savedJob => {
+                    html += renderSavedJobCard(savedJob, 'save_for_later');
+                });
+            }
+            html += `</div>`; // End save for later section
+            // Applied Jobs Section
+            html += `
+                <div class="job-category" style="margin-top: 40px;">
+                    <h3 style="color: #667eea; border-bottom: 2px solid #667eea; padding-bottom: 10px; margin-bottom: 20px;">
+                        ✅ Applied Jobs (${appliedCount})
+                    </h3>
+            `;
+            if (appliedCount === 0) {
+                html += `<div style="text-align: center; color: #666; padding: 20px; font-style: italic;">No jobs applied to yet</div>`;
+            } else {
+                result.saved_jobs.applied.forEach(savedJob => {
+                    html += renderSavedJobCard(savedJob, 'applied');
+                });
+            }
+            html += `</div>`; // End applied jobs section
+            // Not Interested Section
+            html += `
+                <div class="job-category" style="margin-top: 40px;">
+                    <h3 style="color: #e53e3e; border-bottom: 2px solid #e53e3e; padding-bottom: 10px; margin-bottom: 20px;">
+                        🚫 Not Interested (${notInterestedCount})
+                    </h3>
+            `;
+            if (notInterestedCount === 0) {
+                html += `<div style="text-align: center; color: #666; padding: 20px; font-style: italic;">No jobs marked as not interested</div>`;
+            } else {
+                result.saved_jobs.not_interested.forEach(savedJob => {
+                    html += renderSavedJobCard(savedJob, 'not_interested');
+                });
+            }
+            html += `</div>`; // End not interested section
+            html += '</div>'; // End categorized jobs
+            container.innerHTML = html;
+        }
+
+        function renderSavedJobCard(savedJob, category) {
+            const job = savedJob.job_data;
+            const savedDate = new Date(savedJob.saved_at).toLocaleDateString();
+            const appliedDate = savedJob.applied_at ? new Date(savedJob.applied_at).toLocaleDateString() : null;
+            const statusIndicator = category === 'applied'
+                ? `<div style="background: #c6f6d5; color: #22543d; padding: 4px 8px; border-radius: 4px; font-size: 0.8rem; font-weight: 600;">✅ Applied ${appliedDate ? `on ${appliedDate}` : ''}</div>`
+                : category === 'save_for_later'
+                ? `<div style="background: #fefcbf; color: #b7791f; padding: 4px 8px; border-radius: 4px; font-size: 0.8rem; font-weight: 600;">🕒 Save for Later</div>`
+                : category === 'not_interested'
+                ? `<div style="background: #fed7d7; color: #e53e3e; padding: 4px 8px; border-radius: 4px; font-size: 0.8rem; font-weight: 600;">🚫 Not Interested</div>`
+                : `<div style="background: #fed7d7; color: #742a2a; padding: 4px 8px; border-radius: 4px; font-size: 0.8rem; font-weight: 600;">⏳ Not Applied</div>`;
+            let actionButton = '';
+            if (category === 'applied') {
+                actionButton = `<button onclick="markJobStatus('${savedJob.id}', false)" class="job-link" style="background: #e53e3e;">Mark as Not Applied</button>`;
+            } else if (category === 'save_for_later') {
+                actionButton = `<button onclick="markSaveForLaterStatus('${savedJob.id}', false)" class="job-link" style="background: #48bb78;">Move to Saved</button>`;
+            } else if (category === 'not_interested') {
+                actionButton = `<button onclick="markNotInterestedStatus('${savedJob.id}', false)" class="job-link" style="background: #48bb78;">Move to Saved</button>`;
+            } else {
+                actionButton = `<button onclick="markJobStatus('${savedJob.id}', true)" class="job-link" style="background: #48bb78;">Mark as Applied</button>` +
+                    `<button onclick="markSaveForLaterStatus('${savedJob.id}', true)" class="job-link" style="background: #f6ad55;">Save for Later</button>` +
+                    `<button onclick="markNotInterestedStatus('${savedJob.id}', true)" class="job-link" style="background: #e53e3e; color: white;">🚫 Not Interested</button>`;
+            }
+            return `
+                <div class="saved-job-card" style="border-left-color: ${category === 'applied' ? '#667eea' : category === 'save_for_later' ? '#f6ad55' : category === 'not_interested' ? '#e53e3e' : '#48bb78'};">
+                    <div class="saved-job-meta">
+                        <div>
+                            <span class="saved-date">Saved on ${savedDate}</span>
+                            ${statusIndicator}
+                        </div>
+                        <div class="saved-actions">
+                            ${actionButton}
+                            <button onclick="deleteSavedJob('${savedJob.id}')" class="remove-job-btn">🗑️ Remove</button>
+                        </div>
+                    </div>
+                    <div class="job-header">
+                        <div>
+                            <div class="job-title">${escapeHtml(job.title || 'N/A')}</div>
+                            <div class="job-company">${escapeHtml(job.company || 'N/A')}</div>
+                        </div>
+                    </div>
+                    <div class="job-details">
+                        <div class="job-detail"><strong>Location:</strong> ${escapeHtml(job.location || 'Not specified')}</div>
+                        <div class="job-detail"><strong>Job Type:</strong> ${escapeHtml(job.job_type || 'Not specified')}</div>
+                        <div class="job-detail"><strong>Salary:</strong> ${formatSalary(job)}</div>
+                        <div class="job-detail"><strong>Site:</strong> ${escapeHtml(job.site || 'N/A')}</div>
+                    </div>
+                    ${job.description ? `
+                        <div class="job-description">
+                            <strong>Description:</strong><br>
+                            ${truncateDescription(job.description)}
+                        </div>
+                    ` : ''}
+                    <div class="job-links">
+                        ${job.job_url_direct ? `<a href="${job.job_url_direct}" target="_blank" class="job-link">Apply Now</a>` : (job.job_url ? `<a href="${job.job_url}" target="_blank" class="job-link">View Job</a>` : '')}
+                        ${job.company_url ? `<a href="${job.company_url}" target="_blank" class="job-link">Company Page</a>` : ''}
+                    </div>
+                    ${savedJob.notes ? `
+                        <div class="notes-section">
+                            <strong>Notes:</strong><br>
+                            ${escapeHtml(savedJob.notes)}
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+        }
+
+        function updateSavedCount(count = null) {
+            const countElement = document.getElementById('saved-count');
+            countElement.textContent = count !== null ? count : savedJobs.length;
+        }
+
+        async function markJobStatus(jobId, applied) {
+            try {
+                // Ensure boolean is sent as true/false, not string
+                const boolValue = applied ? 'true' : 'false';
+                const response = await fetch(`${API_BASE_URL}/saved-job/${jobId}/applied?applied=${boolValue}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    // Reload saved jobs and update save button states
+                    await loadSavedJobs();
+                    updateSaveButtonStates();
+                } else {
+                    alert('Failed to update job status: ' + (result.message || result.detail || 'Unknown error'));
+                }
+            } catch (error) {
+                console.error('Error updating job status:', error);
+                alert('Failed to update job status. Please try again.');
+            }
+        }
+
+        async function handleSaveJob(jobIndex) {
+            const job = currentJobs[jobIndex];
+            const button = document.getElementById(`save-btn-${jobIndex}`);
+            
+            if (!job) {
+                alert('Job data not found.');
+                return;
+            }
+
+            // Disable button during save
+            button.disabled = true;
+            button.innerHTML = '⏳ Saving...';
+
+            const success = await saveJob(job);
+            
+            if (success) {
+                button.innerHTML = '✅ Saved';
+                button.classList.add('saved');
+                button.disabled = true;
+                
+                // Update button states for all job cards
+                updateSaveButtonStates();
+            } else {
+                // Re-enable button on failure
+                button.disabled = false;
+                button.innerHTML = '💾 Save Job';
+            }
+        }
+
+        function updateSaveButtonStates() {
+            currentJobs.forEach((job, index) => {
+                const button = document.getElementById(`save-btn-${index}`);
+                if (button && isJobSaved(job)) {
+                    button.innerHTML = '✅ Saved';
+                    button.classList.add('saved');
+                    button.disabled = true;
+                } else if (button) {
+                    button.innerHTML = '💾 Save Job';
+                    button.classList.remove('saved');
+                    button.disabled = false;
+                }
+            });
+        }
+
+        function isJobSaved(jobData) {
+            return savedJobs.some(savedJob => {
+                const saved = savedJob.job_data;
+                const jobUrl = jobData.job_url || '';
+                const savedUrl = saved.job_url || '';
+                
+                // Check by URL first
+                if (jobUrl && savedUrl && jobUrl === savedUrl) {
+                    return true;
+                }
+                
+                // Check by title + company
+                const jobTitle = (jobData.title || '').toLowerCase().trim();
+                const jobCompany = (jobData.company || '').toLowerCase().trim();
+                const savedTitle = (saved.title || '').toLowerCase().trim();
+                const savedCompany = (saved.company || '').toLowerCase().trim();
+                
+                return jobTitle && jobCompany && savedTitle && savedCompany &&
+                       jobTitle === savedTitle && jobCompany === savedCompany;
+            });
+        }
+
+        // Add markSaveForLaterStatus function
+        async function markSaveForLaterStatus(jobId, saveForLater) {
+            try {
+                const response = await fetch(`${API_BASE_URL}/saved-job/${jobId}/save-for-later?save_for_later=${saveForLater}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                const result = await response.json();
+                if (result.success) {
+                    await loadSavedJobs();
+                    updateSaveButtonStates();
+                } else {
+                    alert('Failed to update save for later status: ' + (result.message || result.detail || 'Unknown error'));
+                }
+            } catch (error) {
+                console.error('Error updating save for later status:', error);
+                alert('Failed to update save for later status. Please try again.');
+            }
+        }
+
+        // Add markNotInterestedFromSearch function
+        async function markNotInterestedFromSearch(index) {
+            const job = currentJobs[index];
+            // Save the job if not already saved, then mark as not interested
+            let savedJob = savedJobs.find(j => (j.job_data.job_url && j.job_data.job_url === job.job_url) || (j.job_data.title === job.title && j.job_data.company === job.company));
+            if (!savedJob) {
+                // Save the job first
+                await saveJob(job);
+                await loadSavedJobs();
+                savedJob = savedJobs.find(j => (j.job_data.job_url && j.job_data.job_url === job.job_url) || (j.job_data.title === job.title && j.job_data.company === job.company));
+            }
+            if (savedJob) {
+                await markNotInterestedStatus(savedJob.id, true);
+                await loadSavedJobs();
+                displayResults({ ...lastSearchResult }); // Remove from search results
+            }
+        }
+
+        // Add markNotInterestedStatus function
+        async function markNotInterestedStatus(jobId, notInterested) {
+            try {
+                const response = await fetch(`${API_BASE_URL}/saved-job/${jobId}/not-interested?not_interested=${notInterested}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                const result = await response.json();
+                if (result.success) {
+                    await loadSavedJobs();
+                    updateSaveButtonStates();
+                } else {
+                    alert('Failed to update not interested status: ' + (result.message || result.detail || 'Unknown error'));
+                }
+            } catch (error) {
+                console.error('Error updating not interested status:', error);
+                alert('Failed to update not interested status. Please try again.');
+            }
+        }
+
+        // On page load, prefill API key if available and check backend
+        window.addEventListener('load', async () => {
+            // Initialize tabs
+            initializeTabs();
+            
+            // Prefill API key from localStorage
+            const apiKeyInput = document.getElementById('openai-api-key');
+            const savedKey = localStorage.getItem('openai_api_key');
+            if (savedKey) {
+                apiKeyInput.value = savedKey;
+            }
+            
+            // Initialize saved jobs refresh button
+            document.getElementById('refresh-saved-btn').addEventListener('click', loadSavedJobs);
+            
+            // Check if API is available and load saved jobs
+            try {
+                const response = await fetch(`${API_BASE_URL}/health`);
+                if (response.ok) {
+                    console.log('✅ Backend API is available');
+                    // Load saved jobs count
+                    await loadSavedJobs();
+                } else {
+                    throw new Error('API health check failed');
+                }
+            } catch (error) {
+                console.warn('⚠️ Backend API not available:', error.message);
+                document.getElementById('results-container').innerHTML = `
+                    <div class="error">
+                        <strong>Backend Not Available</strong><br>
+                        The JobSpy API server is not running. Please start the backend server first:
+                        <br><br>
+                        <code>cd backend && python main.py</code>
+                    </div>
+                `;
+            }
+        });
+    </script>
+    <!-- Add modal HTML if not present -->
+    <div id="description-modal" class="modal-overlay" style="display:none;">
+        <div class="modal-content">
+            <button class="modal-close" onclick="closeDescriptionModal()">&times;</button>
+            <h2 id="modal-job-title"></h2>
+            <h3 id="modal-job-company" style="color:#667eea;"></h3>
+            <div id="modal-job-description" style="margin-top:20px;"></div>
+        </div>
+    </div>
+    <!-- Modal CSS -->
+    <style>
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.4);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-content {
+            background: #fff;
+            border-radius: 10px;
+            max-width: 600px;
+            width: 90%;
+            padding: 30px 30px 20px 30px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            position: relative;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        .modal-close {
+            position: absolute;
+            top: 10px;
+            right: 20px;
+            background: none;
+            border: none;
+            font-size: 2rem;
+            color: #667eea;
+            cursor: pointer;
+        }
+        @media (max-width: 700px) {
+            .modal-content { padding: 15px; }
+        }
+    </style>
+    <!-- Modal JS -->
+    <script>
+        // Modal JS
+        window.openDescriptionModal = function(index) {
+            const job = currentJobs[index];
+            document.getElementById('modal-job-title').textContent = job.title || '';
+            document.getElementById('modal-job-company').textContent = job.company || '';
+            document.getElementById('modal-job-description').innerHTML = job.description ? job.description : '<em>No description available.</em>';
+            document.getElementById('description-modal').style.display = 'flex';
+        }
+        window.closeDescriptionModal = function() {
+            document.getElementById('description-modal').style.display = 'none';
+        }
+    </script>
+</body>
+</html> 
