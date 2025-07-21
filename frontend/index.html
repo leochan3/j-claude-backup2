@@ -740,6 +740,15 @@
                     </div>
 
                     <div class="form-group">
+                        <label for="max-salary">Maximum Salary (USD)</label>
+                        <input type="number" id="max-salary" name="max_salary" placeholder="e.g., 200000" step="1000" min="0">
+                        <small style="color: #666; font-size: 0.85rem; margin-top: 4px; display: block;">
+                            💰 <strong>Filter out high-salary jobs:</strong> Jobs with minimum salary above this amount will be hidden<br>
+                            💡 <strong>Leave empty to see all salaries</strong>
+                        </small>
+                    </div>
+
+                    <div class="form-group">
                         <div class="checkbox-group">
                             <input type="checkbox" id="is-remote" name="is_remote">
                             <label for="is-remote">Remote Jobs Only</label>
@@ -959,6 +968,21 @@
             }
         });
         
+        function filterJobsBySalary(jobs, maxSalary) {
+            if (!maxSalary || maxSalary <= 0) {
+                return jobs; // No filter applied
+            }
+            
+            return jobs.filter(job => {
+                // If job has min_amount, check if it's within the max salary limit
+                if (job.min_amount && job.min_amount > maxSalary) {
+                    console.log(`Filtering out high-salary job: ${job.title} at ${job.company} (min: $${job.min_amount.toLocaleString()})`);
+                    return false;
+                }
+                return true;
+            });
+        }
+
         function displayResults(result) {
             const container = document.getElementById('results-container');
             
@@ -974,27 +998,45 @@
             console.log(`Search Results: ${result.jobs.length} total, ${uniqueJobs.length} unique (${duplicatesRemoved} duplicates removed)`);
             console.log(`Saved jobs in memory: ${savedJobs.length}`);
             
+            // Apply salary filter
+            const maxSalary = parseInt(document.getElementById('max-salary').value) || 0;
+            let salaryFilteredJobs = filterJobsBySalary(uniqueJobs, maxSalary);
+            let salaryFilteredCount = uniqueJobs.length - salaryFilteredJobs.length;
+            
+            if (salaryFilteredCount > 0) {
+                console.log(`Salary filter: ${salaryFilteredCount} jobs filtered out (max salary: $${maxSalary.toLocaleString()})`);
+            }
+            
             // Filter out already saved jobs (unless this is filtered AI results)
-            let jobsToDisplay = uniqueJobs;
+            let jobsToDisplay = salaryFilteredJobs;
             let originalCount = result.job_count;
-            let filteredOutCount = 0;
+            let savedFilteredOutCount = 0;
             
             if (!result.search_params?.filtered) {
-                jobsToDisplay = uniqueJobs.filter(job => {
+                jobsToDisplay = salaryFilteredJobs.filter(job => {
                     const isSaved = isJobSaved(job);
                     if (isSaved) {
                         console.log(`Filtering out saved job: ${job.title} at ${job.company}`);
                     }
                     return !isSaved;
                 });
-                filteredOutCount = uniqueJobs.length - jobsToDisplay.length;
-                console.log(`Final display: ${jobsToDisplay.length} jobs (${filteredOutCount} saved jobs filtered out)`);
+                savedFilteredOutCount = salaryFilteredJobs.length - jobsToDisplay.length;
+                console.log(`Final display: ${jobsToDisplay.length} jobs (${savedFilteredOutCount} saved jobs filtered out)`);
             }
             
             if (jobsToDisplay.length === 0) {
-                const message = originalCount > 0 
-                    ? "All found jobs are already in your saved collection! Try different search criteria to find new opportunities."
-                    : "No jobs found matching your criteria. Try adjusting your search parameters.";
+                let message;
+                if (originalCount > 0) {
+                    if (salaryFilteredCount > 0 && savedFilteredOutCount === 0) {
+                        message = `All ${salaryFilteredCount + duplicatesRemoved} found jobs were filtered out by your maximum salary limit ($${maxSalary.toLocaleString()}). Try increasing the salary limit or removing it entirely.`;
+                    } else if (savedFilteredOutCount > 0) {
+                        message = "All remaining jobs are already in your saved collection! Try different search criteria to find new opportunities.";
+                    } else {
+                        message = "All found jobs were filtered out. Try adjusting your search parameters.";
+                    }
+                } else {
+                    message = "No jobs found matching your criteria. Try adjusting your search parameters.";
+                }
                     
                 container.innerHTML = `
                     <div class="success">
@@ -1011,13 +1053,16 @@
             
             // Add filtering info if jobs were filtered out
             let filterInfo = '';
-            if (duplicatesRemoved > 0 || filteredOutCount > 0) {
+            if (duplicatesRemoved > 0 || salaryFilteredCount > 0 || savedFilteredOutCount > 0) {
                 let notes = [];
                 if (duplicatesRemoved > 0) {
                     notes.push(`${duplicatesRemoved} duplicate jobs removed`);
                 }
-                if (filteredOutCount > 0) {
-                    notes.push(`${filteredOutCount} already saved jobs hidden`);
+                if (salaryFilteredCount > 0) {
+                    notes.push(`${salaryFilteredCount} high-salary jobs filtered (max: $${maxSalary.toLocaleString()})`);
+                }
+                if (savedFilteredOutCount > 0) {
+                    notes.push(`${savedFilteredOutCount} already saved jobs hidden`);
                 }
                 filterInfo = `<br><strong>📋 Note:</strong> ${notes.join(', ')}`;
             }
@@ -1153,22 +1198,26 @@
         }
         
         function removeDuplicateJobs(jobs) {
-            const seen = new Set();
+            const seenUrls = new Set();
+            const seenTitleCompany = new Set();
             const unique = [];
             
             for (const job of jobs) {
-                // Create a unique identifier based on multiple fields
-                const identifier = `${(job.title || '').toLowerCase().trim()}-${(job.company || '').toLowerCase().trim()}-${(job.location || '').toLowerCase().trim()}`;
+                const jobUrl = job.job_url || job.job_url_direct;
                 
-                // Also check by job URL if available
-                const urlIdentifier = job.job_url || job.job_url_direct;
-                
-                if (!seen.has(identifier) && (!urlIdentifier || !seen.has(urlIdentifier))) {
-                    seen.add(identifier);
-                    if (urlIdentifier) {
-                        seen.add(urlIdentifier);
+                // If job has a URL, use URL as primary identifier
+                if (jobUrl) {
+                    if (!seenUrls.has(jobUrl)) {
+                        seenUrls.add(jobUrl);
+                        unique.push(job);
                     }
-                    unique.push(job);
+                } else {
+                    // Only for jobs without URLs, fall back to title+company+location
+                    const identifier = `${(job.title || '').toLowerCase().trim()}-${(job.company || '').toLowerCase().trim()}-${(job.location || '').toLowerCase().trim()}`;
+                    if (!seenTitleCompany.has(identifier)) {
+                        seenTitleCompany.add(identifier);
+                        unique.push(job);
+                    }
                 }
             }
             
@@ -1719,22 +1768,26 @@
         function isJobSaved(jobData) {
             return savedJobs.some(savedJob => {
                 const saved = savedJob.job_data;
-                const jobUrl = jobData.job_url || '';
-                const savedUrl = saved.job_url || '';
+                const jobUrl = jobData.job_url || jobData.job_url_direct || '';
+                const savedUrl = saved.job_url || saved.job_url_direct || '';
                 
-                // Check by URL first
-                if (jobUrl && savedUrl && jobUrl === savedUrl) {
-                    return true;
+                // If both jobs have URLs, only match by URL (most reliable)
+                if (jobUrl && savedUrl) {
+                    return jobUrl === savedUrl;
                 }
                 
-                // Check by title + company
-                const jobTitle = (jobData.title || '').toLowerCase().trim();
-                const jobCompany = (jobData.company || '').toLowerCase().trim();
-                const savedTitle = (saved.title || '').toLowerCase().trim();
-                const savedCompany = (saved.company || '').toLowerCase().trim();
+                // Only fall back to title + company matching if at least one job has no URL
+                if (!jobUrl || !savedUrl) {
+                    const jobTitle = (jobData.title || '').toLowerCase().trim();
+                    const jobCompany = (jobData.company || '').toLowerCase().trim();
+                    const savedTitle = (saved.title || '').toLowerCase().trim();
+                    const savedCompany = (saved.company || '').toLowerCase().trim();
+                    
+                    return jobTitle && jobCompany && savedTitle && savedCompany &&
+                           jobTitle === savedTitle && jobCompany === savedCompany;
+                }
                 
-                return jobTitle && jobCompany && savedTitle && savedCompany &&
-                       jobTitle === savedTitle && jobCompany === savedCompany;
+                return false;
             });
         }
 
