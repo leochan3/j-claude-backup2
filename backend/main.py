@@ -71,6 +71,7 @@ class JobSearchRequest(BaseModel):
     description_format: Optional[str] = "markdown"
     offset: Optional[int] = 0
     verbose: Optional[int] = 2  # More verbose to help debug
+    max_years_experience: Optional[int] = None  # New: filter jobs by max years of experience
 
 class JobSearchResponse(BaseModel):
     success: bool
@@ -194,6 +195,27 @@ def job_already_saved(job_data: Dict[str, Any], saved_jobs: List[SavedJob]) -> b
     
     return False
 
+def extract_max_years_experience(description: str) -> Optional[int]:
+    """Extract the maximum years of experience required from a job description using improved regex patterns."""
+    if not description or not isinstance(description, str):
+        return None
+    patterns = [
+        r"(\d+)\s*\+?\s*(?:years?|yrs?)\s*(?:and above|and up|or more|or greater|or higher|plus)?\s*(?:of)?\s*(?:relevant\s*)?(?:experience|exp|in|as)?",
+        r"minimum\s*(\d+)\s*(?:years?|yrs?)",
+        r"at least\s*(\d+)\s*(?:years?|yrs?)",
+        r"(\d+)[-–]year"
+    ]
+    matches = []
+    for pattern in patterns:
+        for match in re.findall(pattern, description, re.IGNORECASE):
+            try:
+                matches.append(int(match))
+            except Exception:
+                continue
+    if matches:
+        return max(matches)
+    return None
+
 @app.get("/")
 async def root():
     return {
@@ -312,7 +334,7 @@ async def search_single_company(search_term: str, company: str, search_params: d
 
 @app.post("/search-jobs", response_model=JobSearchResponse)
 async def search_jobs(request: JobSearchRequest):
-    """Search for jobs using JobSpy with multi-company and multi-title support"""
+    """Search for jobs using JobSpy with multi-company and multi-title support, with optional max years of experience filter."""
     try:
         # Parse multiple job titles (comma-separated)
         job_titles = [t.strip() for t in request.search_term.split(',') if t.strip()]
@@ -383,6 +405,14 @@ async def search_jobs(request: JobSearchRequest):
                 for key, value in job.items():
                     if pd.isna(value):
                         job[key] = None
+            # Filter by max_years_experience if set
+            if request.max_years_experience is not None:
+                filtered_jobs = []
+                for job in jobs_list:
+                    max_yoe = extract_max_years_experience(job.get('description', ''))
+                    if max_yoe is None or max_yoe <= request.max_years_experience:
+                        filtered_jobs.append(job)
+                jobs_list = filtered_jobs
             filter_info = ""
             if companies:
                 if len(companies) == 1:
@@ -391,12 +421,14 @@ async def search_jobs(request: JobSearchRequest):
                     filter_info = f" (companies: {', '.join(companies)})"
             if len(job_titles) > 1:
                 filter_info += f" (titles: {', '.join(job_titles)})"
+            if request.max_years_experience is not None:
+                filter_info += f" (max YOE: {request.max_years_experience})"
             return JobSearchResponse(
                 success=True,
                 message=f"Successfully found {len(jobs_list)} jobs{filter_info}",
                 job_count=len(jobs_list),
                 jobs=jobs_list,
-                search_params={**base_search_params, "company_filter": request.company_filter, "search_term": request.search_term},
+                search_params={**base_search_params, "company_filter": request.company_filter, "search_term": request.search_term, "max_years_experience": request.max_years_experience},
                 timestamp=datetime.now().isoformat()
             )
         else:

@@ -748,6 +748,17 @@
                         </small>
                     </div>
 
+                    <!-- New: Max Years of Experience filter -->
+                    <div class="form-group">
+                        <label for="max-yoe">Max Years of Experience</label>
+                        <input type="number" id="max-yoe" name="max_years_experience" placeholder="e.g., 3" min="0">
+                        <small style="color: #666; font-size: 0.85rem; margin-top: 4px; display: block;">
+                            🎯 <strong>Filter out jobs requiring more experience than you want.</strong><br>
+                            <strong>Example:</strong> Enter 3 to hide jobs needing 4+ years.<br>
+                            <strong>Leave empty to see all jobs.</strong>
+                        </small>
+                    </div>
+
                     <div class="form-group">
                         <div class="checkbox-group">
                             <input type="checkbox" id="is-remote" name="is_remote">
@@ -1122,6 +1133,9 @@
                         score: job.relevanceScore
                     }))
                 );
+
+                // Filter out jobs with no matching score
+                salaryFilteredJobs = salaryFilteredJobs.filter(job => job.relevanceScore && job.relevanceScore > 0);
             }
             
             // Filter out already saved jobs (unless this is filtered AI results)
