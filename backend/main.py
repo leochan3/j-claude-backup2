@@ -589,6 +589,131 @@ async def search_jobs(
             detail=f"Error scraping jobs: {str(e)}"
         )
 
+@app.post("/search-jobs-public", response_model=JobSearchResponse)
+async def search_jobs_public(request: JobSearchRequest):
+    """Search for jobs using JobSpy without authentication (public endpoint)."""
+    try:
+        start_time = time.time()
+        
+        # Use the request as-is since it already has default values
+        effective_request = request
+        
+        # Parse multiple job titles (comma-separated)
+        job_titles = [t.strip() for t in effective_request.search_term.split(',') if t.strip()]
+        # Parse multiple companies (comma-separated)
+        companies = []
+        if effective_request.company_filter and effective_request.company_filter.strip():
+            companies = [company.strip() for company in effective_request.company_filter.split(',') if company.strip()]
+        # Parse multiple locations (comma-separated)
+        locations = [loc.strip() for loc in effective_request.location.split(',') if loc.strip()] if effective_request.location else ["USA"]
+        # Prepare base parameters for JobSpy (except location)
+        base_search_params = {
+            "site_name": effective_request.site_name,
+            # location will be set per-iteration
+            "distance": effective_request.distance,
+            "job_type": effective_request.job_type,
+            "is_remote": effective_request.is_remote,
+            "results_wanted": effective_request.results_wanted,
+            "hours_old": effective_request.hours_old,
+            "country_indeed": effective_request.country_indeed,
+            "easy_apply": getattr(effective_request, 'easy_apply', None),
+            "description_format": getattr(effective_request, 'description_format', 'markdown'),
+            "offset": getattr(effective_request, 'offset', 0),
+            "verbose": getattr(effective_request, 'verbose', 2)
+        }
+        base_search_params = {k: v for k, v in base_search_params.items() if v is not None}
+        all_jobs_df = pd.DataFrame()
+        # Nested loops for all combinations
+        if companies:
+            print(f"Multi-company search for {len(companies)} companies: {companies}")
+            for job_title in job_titles:
+                for company in companies:
+                    for location in locations:
+                        company_search_params = base_search_params.copy()
+                        company_search_params["location"] = location
+                        company_jobs_df = await search_single_company(job_title, company, company_search_params)
+                        if not company_jobs_df.empty:
+                            company_jobs_df = company_jobs_df.copy()
+                            company_jobs_df['search_company'] = company
+                            company_jobs_df['search_title'] = job_title
+                            company_jobs_df['search_location'] = location
+                            if all_jobs_df.empty:
+                                all_jobs_df = company_jobs_df
+                            else:
+                                all_jobs_df = pd.concat([all_jobs_df, company_jobs_df], ignore_index=True)
+        else:
+            print("No company filter - searching all companies")
+            for job_title in job_titles:
+                for location in locations:
+                    search_params = base_search_params.copy()
+                    search_params["search_term"] = job_title
+                    search_params["location"] = location
+                    print(f"JobSpy Parameters: {search_params}")
+                    jobs_df = scrape_jobs(**search_params)
+                    if not jobs_df.empty:
+                        jobs_df = jobs_df.copy()
+                        jobs_df['search_title'] = job_title
+                        jobs_df['search_location'] = location
+                        if all_jobs_df.empty:
+                            all_jobs_df = jobs_df
+                        else:
+                            all_jobs_df = pd.concat([all_jobs_df, jobs_df], ignore_index=True)
+        
+        # Process results (same as authenticated version)
+        if not all_jobs_df.empty:
+            # Convert to dict format
+            jobs_list = []
+            for _, row in all_jobs_df.iterrows():
+                job_dict = {}
+                for col in all_jobs_df.columns:
+                    if pd.notna(row[col]):
+                        if col in ['min_amount', 'max_amount'] and isinstance(row[col], (int, float)):
+                            job_dict[col] = float(row[col])
+                        elif col == 'emails' and isinstance(row[col], list):
+                            job_dict[col] = row[col]
+                        else:
+                            job_dict[col] = str(row[col])
+                jobs_list.append(job_dict)
+            
+            # Remove duplicates based on job_url
+            unique_jobs = {}
+            for job in jobs_list:
+                job_url = job.get('job_url', '')
+                if job_url and job_url not in unique_jobs:
+                    unique_jobs[job_url] = job
+                elif not job_url:
+                    # For jobs without URL, add them all (they'll be handled by frontend)
+                    title_company_key = f"{job.get('title', '')}-{job.get('company', '')}-{job.get('location', '')}"
+                    unique_jobs[title_company_key] = job
+            
+            unique_jobs_list = list(unique_jobs.values())
+            
+            end_time = time.time()
+            search_duration = end_time - start_time
+            
+            return JobSearchResponse(
+                success=True,
+                message=f"Found {len(unique_jobs_list)} unique jobs (removed {len(jobs_list) - len(unique_jobs_list)} duplicates) in {search_duration:.2f} seconds",
+                job_count=len(unique_jobs_list),
+                jobs=unique_jobs_list,
+                search_params={**base_search_params, "company_filter": effective_request.company_filter, "search_term": effective_request.search_term, "location": effective_request.location},
+                timestamp=datetime.now().isoformat()
+            )
+        else:
+            return JobSearchResponse(
+                success=True,
+                message="No jobs found matching your criteria",
+                job_count=0,
+                jobs=[],
+                search_params={**base_search_params, "company_filter": effective_request.company_filter, "search_term": effective_request.search_term, "location": effective_request.location},
+                timestamp=datetime.now().isoformat()
+            )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Error scraping jobs: {str(e)}"
+        )
+
 # AI Filtering Functions
 async def analyze_job_with_ai(job: Dict[str, Any], analysis_prompt: str, job_id: int, client) -> AIAnalysisResult:
     """Analyze a single job using OpenAI"""

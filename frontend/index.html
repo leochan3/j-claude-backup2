@@ -1359,7 +1359,9 @@
 
         async function checkAuthStatus() {
             const token = loadAuthToken();
+            console.log('checkAuthStatus - token:', token);
             if (!token) {
+                console.log('No token found, updating UI for logged out user');
                 updateUIForLoggedOutUser();
                 return false;
             }
@@ -1958,8 +1960,11 @@
             resultsContainer.innerHTML = `<div class="loading">${loadingMessage}</div>`;
             
             try {
-                // Load saved jobs first to ensure filtering works
-                await loadSavedJobs();
+                // Load saved jobs first if user is logged in
+                if (currentUser) {
+                    await loadSavedJobs();
+                }
+                
                 // Collect form data
                 const formData = new FormData(e.target);
                 const searchData = {};
@@ -1991,14 +1996,23 @@
                 }
                 
                 console.log('Search data:', searchData);
+                console.log('Current user:', currentUser);
+                console.log('Auth token:', authToken);
+                
+                // Use different endpoint based on authentication status
+                const endpoint = currentUser ? '/search-jobs' : '/search-jobs-public';
+                const headers = { 'Content-Type': 'application/json' };
+                if (currentUser) {
+                    Object.assign(headers, getAuthHeaders());
+                }
+                
+                console.log('Using endpoint:', endpoint);
+                console.log('Using headers:', headers);
                 
                 // Make API request
-                const response = await fetch(`${API_BASE_URL}/search-jobs`, {
+                const response = await fetch(`${API_BASE_URL}${endpoint}`, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        ...getAuthHeaders()
-                    },
+                    headers: headers,
                     body: JSON.stringify(searchData)
                 });
                 
@@ -2970,6 +2984,15 @@
             
             if (!job) {
                 alert('Job data not found.');
+                return;
+            }
+
+            // Check if user is logged in
+            if (!currentUser) {
+                // Show login prompt
+                if (confirm('You need to be logged in to save jobs. Would you like to go to the login page?')) {
+                    showAuthModal('login');
+                }
                 return;
             }
 
