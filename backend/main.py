@@ -5,6 +5,8 @@ from typing import List, Optional, Dict, Any
 import pandas as pd
 from jobspy import scrape_jobs
 import uvicorn
+import requests
+import io
 from datetime import datetime, timedelta
 import re
 import os
@@ -712,6 +714,115 @@ async def search_jobs_public(request: JobSearchRequest):
         raise HTTPException(
             status_code=500, 
             detail=f"Error scraping jobs: {str(e)}"
+        )
+
+@app.post("/generate-resume-pdf")
+async def generate_resume_pdf(request: dict):
+    """Generate PDF from LaTeX resume code with multiple service fallbacks"""
+    try:
+        from fastapi.responses import StreamingResponse
+        import base64
+        
+        latex_code = request.get('latex_code', '')
+        if not latex_code:
+            raise HTTPException(status_code=400, detail="LaTeX code is required")
+        
+        # List of LaTeX compilation services to try (most reliable first)
+        services = [
+            {
+                "name": "LaTeX.Online (texlive2021)",
+                "url": "https://texlive2021.latexonline.cc/compile",
+                "method": "multipart"
+            },
+            {
+                "name": "LaTeX.Online (main)",
+                "url": "https://latexonline.cc/compile",
+                "method": "multipart_alt"
+            },
+            {
+                "name": "LaTeX.Online (aslushnikov)",
+                "url": "https://latex.aslushnikov.com/compile",
+                "method": "multipart"
+            }
+        ]
+        
+        last_error = None
+        
+        for service in services:
+            try:
+                print(f"Trying {service['name']}...")
+                
+                if service['method'] == 'multipart':
+                    # Standard multipart file upload
+                    files = {
+                        'file': ('resume.tex', latex_code, 'text/plain')
+                    }
+                    headers = {'User-Agent': 'JobSpy-Resume-Builder/1.0'}
+                    response = requests.post(service['url'], files=files, headers=headers, timeout=60)
+                    
+                elif service['method'] == 'multipart_alt':
+                    # Alternative multipart format
+                    files = {
+                        'filecontents[]': ('resume.tex', latex_code, 'text/plain')
+                    }
+                    data = {
+                        'filename[]': 'resume.tex',
+                        'compiler': 'pdflatex'
+                    }
+                    headers = {'User-Agent': 'JobSpy-Resume-Builder/1.0'}
+                    response = requests.post(service['url'], files=files, data=data, headers=headers, timeout=60)
+                
+                else:
+                    print(f"⚠️ Unknown method for {service['name']}")
+                    continue
+                
+                print(f"{service['name']} response status: {response.status_code}")
+                
+                if response.status_code == 200:
+                    # Check if response is actually a PDF
+                    content = response.content
+                    if content.startswith(b'%PDF'):
+                        print(f"✅ PDF generation successful with {service['name']}")
+                        return StreamingResponse(
+                            io.BytesIO(content),
+                            media_type="application/pdf",
+                            headers={"Content-Disposition": "attachment; filename=resume.pdf"}
+                        )
+                    else:
+                        print(f"❌ {service['name']} returned non-PDF content")
+                        last_error = f"{service['name']}: Response not a valid PDF"
+                else:
+                    error_text = response.text[:500] if response.text else "No error message"
+                    print(f"❌ {service['name']} failed: {response.status_code} - {error_text}")
+                    last_error = f"{service['name']}: HTTP {response.status_code} - {error_text}"
+                    
+            except requests.exceptions.Timeout:
+                print(f"⏰ {service['name']} timed out")
+                last_error = f"{service['name']}: Request timed out"
+                continue
+            except requests.exceptions.RequestException as e:
+                print(f"🌐 {service['name']} connection error: {str(e)}")
+                last_error = f"{service['name']}: Connection error - {str(e)}"
+                continue
+            except Exception as e:
+                print(f"❌ {service['name']} unexpected error: {str(e)}")
+                last_error = f"{service['name']}: Unexpected error - {str(e)}"
+                continue
+        
+        # If all services failed, provide detailed error message
+        raise HTTPException(
+            status_code=503,
+            detail=f"All LaTeX compilation services are currently unavailable. Last error: {last_error}. Please try downloading the LaTeX file and compiling it locally using Overleaf (overleaf.com), TeXLive, or MiKTeX."
+        )
+            
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        raise
+    except Exception as e:
+        print(f"💥 Unexpected error in PDF generation: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Unexpected error generating PDF: {str(e)}. Please try downloading the LaTeX file instead."
         )
 
 # AI Filtering Functions
