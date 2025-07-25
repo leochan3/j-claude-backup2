@@ -29,6 +29,55 @@
             text-align: center;
             color: white;
             margin-bottom: 30px;
+            position: relative;
+        }
+
+        .auth-section {
+            position: absolute;
+            top: 0;
+            right: 0;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .auth-button {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .auth-button:hover {
+            background: rgba(255, 255, 255, 0.3);
+            border-color: rgba(255, 255, 255, 0.5);
+            transform: translateY(-1px);
+        }
+
+        .user-info {
+            color: white;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .user-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
         }
 
         .header h1 {
@@ -633,6 +682,181 @@
             border-left: 4px solid #38a169;
         }
 
+        /* Authentication Modal Styles */
+        .auth-modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 2000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(5px);
+        }
+
+        .auth-modal-overlay.show {
+            display: flex;
+        }
+
+        .auth-modal {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            width: 90%;
+            max-width: 400px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+            position: relative;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .auth-modal-close {
+            position: absolute;
+            top: 15px;
+            right: 20px;
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            color: #666;
+            cursor: pointer;
+            padding: 5px;
+            line-height: 1;
+        }
+
+        .auth-modal-close:hover {
+            color: #333;
+        }
+
+        .auth-modal h2 {
+            margin: 0 0 25px 0;
+            color: #2d3748;
+            text-align: center;
+            font-size: 1.8rem;
+        }
+
+        .auth-form-group {
+            margin-bottom: 20px;
+        }
+
+        .auth-form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #4a5568;
+        }
+
+        .auth-form-group input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s ease;
+            box-sizing: border-box;
+        }
+
+        .auth-form-group input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .auth-submit-btn {
+            width: 100%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            margin-bottom: 15px;
+        }
+
+        .auth-submit-btn:hover:not(:disabled) {
+            transform: translateY(-1px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .auth-submit-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .auth-switch {
+            text-align: center;
+            color: #666;
+            margin-top: 15px;
+        }
+
+        .auth-switch button {
+            background: none;
+            border: none;
+            color: #667eea;
+            cursor: pointer;
+            font-weight: 600;
+            text-decoration: underline;
+        }
+
+        .auth-switch button:hover {
+            color: #5a67d8;
+        }
+
+        /* User Profile Modal Styles */
+        .profile-modal {
+            max-width: 500px;
+        }
+
+        .profile-section {
+            margin-bottom: 25px;
+            padding: 20px;
+            background: #f8f9ff;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .profile-section h3 {
+            margin: 0 0 15px 0;
+            color: #2d3748;
+            font-size: 1.2rem;
+        }
+
+        .preference-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .preference-group label {
+            flex: 1;
+            margin: 0;
+        }
+
+        .preference-group input, .preference-group select {
+            flex: 2;
+            padding: 8px;
+            border: 1px solid #e2e8f0;
+            border-radius: 4px;
+        }
+
+        .preference-checkbox {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+
+        .preference-checkbox input[type="checkbox"] {
+            width: auto;
+        }
+
         @media (max-width: 768px) {
             .container {
                 padding: 10px;
@@ -660,6 +884,16 @@
 <body>
     <div class="container">
         <div class="header">
+            <div class="auth-section" id="auth-section">
+                <button class="auth-button" onclick="showAuthModal('login')" id="login-btn">Login</button>
+                <button class="auth-button" onclick="showAuthModal('register')" id="register-btn">Register</button>
+                <div class="user-info" id="user-info" style="display: none;">
+                    <div class="user-avatar" id="user-avatar">U</div>
+                    <span id="user-email">user@example.com</span>
+                    <button class="auth-button" onclick="showProfileModal()" id="profile-btn">Profile</button>
+                    <button class="auth-button" onclick="logout()" id="logout-btn">Logout</button>
+                </div>
+            </div>
             <h1>🔍 JobSpy Web Interface</h1>
             <p>Search jobs across multiple platforms with one powerful tool</p>
         </div>
@@ -671,9 +905,17 @@
                     <span class="tab-icon">🔍</span>
                     Search Jobs
                 </button>
-                <button class="tab-button" data-tab="saved">
+                <button class="tab-button auth-required" data-tab="saved" style="display: none;">
                     <span class="tab-icon">💾</span>
                     Saved Jobs (<span id="saved-count">0</span>)
+                </button>
+                <button class="tab-button auth-required" data-tab="history" style="display: none;">
+                    <span class="tab-icon">📈</span>
+                    Search History
+                </button>
+                <button class="tab-button auth-required" data-tab="preferences" style="display: none;">
+                    <span class="tab-icon">⚙️</span>
+                    Preferences
                 </button>
             </div>
 
@@ -887,10 +1129,814 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Search History Tab Content -->
+            <div id="history-tab" class="tab-content">
+                <div class="saved-jobs-container">
+                    <div class="results-header">
+                        <div class="results-count" id="history-count">Loading search history...</div>
+                        <button id="refresh-history-btn" class="search-button" style="padding: 10px 20px; font-size: 0.9rem;">
+                            🔄 Refresh
+                        </button>
+                    </div>
+                    <div id="search-history-container">
+                        <!-- Search history will be loaded here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Preferences Tab Content -->
+            <div id="preferences-tab" class="tab-content">
+                <div class="saved-jobs-container">
+                    <div class="results-header">
+                        <div class="results-count">User Preferences</div>
+                        <button id="save-preferences-btn" class="search-button" style="padding: 10px 20px; font-size: 0.9rem;">
+                            💾 Save Preferences
+                        </button>
+                    </div>
+                    <div id="preferences-container">
+                        <form id="preferences-form">
+                            <div class="profile-section">
+                                <h3>Default Search Settings</h3>
+                                <div class="preference-group">
+                                    <label>Default Location:</label>
+                                    <input type="text" id="pref-location" name="default_location" placeholder="e.g., USA">
+                                </div>
+                                <div class="preference-group">
+                                    <label>Default Results Count:</label>
+                                    <input type="number" id="pref-results" name="default_results_wanted" min="1" max="1000" placeholder="1000">
+                                </div>
+                                <div class="preference-group">
+                                    <label>Default Job Type:</label>
+                                    <select id="pref-job-type" name="default_job_type">
+                                        <option value="">All Types</option>
+                                        <option value="fulltime">Full Time</option>
+                                        <option value="parttime">Part Time</option>
+                                        <option value="internship">Internship</option>
+                                        <option value="contract">Contract</option>
+                                    </select>
+                                </div>
+                                <div class="preference-checkbox">
+                                    <input type="checkbox" id="pref-remote" name="prefer_remote">
+                                    <label for="pref-remote">Prefer Remote Jobs</label>
+                                </div>
+                                <div class="preference-group">
+                                    <label>Max Salary Filter:</label>
+                                    <input type="number" id="pref-max-salary" name="max_salary" placeholder="e.g., 200000" step="1000">
+                                </div>
+                            </div>
+                            
+                            <div class="profile-section">
+                                <h3>Notification Settings</h3>
+                                <div class="preference-checkbox">
+                                    <input type="checkbox" id="pref-email-alerts" name="email_alerts">
+                                    <label for="pref-email-alerts">Email alerts for new job matches</label>
+                                </div>
+                                <div class="preference-checkbox">
+                                    <input type="checkbox" id="pref-save-searches" name="save_search_history">
+                                    <label for="pref-save-searches">Save search history</label>
+                                </div>
+                            </div>
+
+                            <div class="profile-section">
+                                <h3>Preferred Job Sites</h3>
+                                <div class="preference-checkbox">
+                                    <input type="checkbox" id="pref-indeed" name="preferred_sites" value="indeed" checked>
+                                    <label for="pref-indeed">Indeed</label>
+                                </div>
+                                <div class="preference-checkbox">
+                                    <input type="checkbox" id="pref-linkedin" name="preferred_sites" value="linkedin">
+                                    <label for="pref-linkedin">LinkedIn</label>
+                                </div>
+                                <div class="preference-checkbox">
+                                    <input type="checkbox" id="pref-glassdoor" name="preferred_sites" value="glassdoor">
+                                    <label for="pref-glassdoor">Glassdoor</label>
+                                </div>
+                                <div class="preference-checkbox">
+                                    <input type="checkbox" id="pref-ziprecruiter" name="preferred_sites" value="zip_recruiter">
+                                    <label for="pref-ziprecruiter">ZipRecruiter</label>
+                                </div>
+                                <div class="preference-checkbox">
+                                    <input type="checkbox" id="pref-google" name="preferred_sites" value="google">
+                                    <label for="pref-google">Google Jobs</label>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
         </div> <!-- End Main Content -->
+
+        <!-- Authentication Modal -->
+        <div class="auth-modal-overlay" id="auth-modal-overlay">
+            <div class="auth-modal">
+                <button class="auth-modal-close" onclick="hideAuthModal()">&times;</button>
+                <h2 id="auth-modal-title">Login</h2>
+                <div id="auth-error" class="error" style="display: none; margin: 0 0 20px 0;"></div>
+                <div id="auth-success" class="success" style="display: none; margin: 0 0 20px 0;"></div>
+                
+                <!-- Login Form -->
+                <form id="login-form" style="display: block;">
+                    <div class="auth-form-group">
+                        <label for="login-email">Email Address</label>
+                        <input type="email" id="login-email" name="email" required placeholder="Enter your email">
+                    </div>
+                    <div class="auth-form-group">
+                        <label for="login-password">Password</label>
+                        <input type="password" id="login-password" name="password" required placeholder="Enter your password">
+                    </div>
+                    <button type="submit" class="auth-submit-btn" id="login-submit-btn">Login</button>
+                    <div class="auth-switch">
+                        Don't have an account? <button type="button" onclick="switchAuthMode('register')">Register here</button>
+                    </div>
+                </form>
+
+                <!-- Register Form -->
+                <form id="register-form" style="display: none;">
+                    <div class="auth-form-group">
+                        <label for="register-email">Email Address</label>
+                        <input type="email" id="register-email" name="email" required placeholder="Enter your email">
+                    </div>
+                    <div class="auth-form-group">
+                        <label for="register-password">Password</label>
+                        <input type="password" id="register-password" name="password" required placeholder="Create a password" minlength="6">
+                    </div>
+                    <div class="auth-form-group">
+                        <label for="register-confirm-password">Confirm Password</label>
+                        <input type="password" id="register-confirm-password" name="confirm_password" required placeholder="Confirm your password" minlength="6">
+                    </div>
+                    <button type="submit" class="auth-submit-btn" id="register-submit-btn">Create Account</button>
+                    <div class="auth-switch">
+                        Already have an account? <button type="button" onclick="switchAuthMode('login')">Login here</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Profile Modal -->
+        <div class="auth-modal-overlay" id="profile-modal-overlay">
+            <div class="auth-modal profile-modal">
+                <button class="auth-modal-close" onclick="hideProfileModal()">&times;</button>
+                <h2>User Profile</h2>
+                <div id="profile-error" class="error" style="display: none; margin: 0 0 20px 0;"></div>
+                <div id="profile-success" class="success" style="display: none; margin: 0 0 20px 0;"></div>
+                
+                <div class="profile-section">
+                    <h3>Account Information</h3>
+                    <div class="preference-group">
+                        <label>Email:</label>
+                        <span id="profile-email">user@example.com</span>
+                    </div>
+                    <div class="preference-group">
+                        <label>Member Since:</label>
+                        <span id="profile-created">January 1, 2024</span>
+                    </div>
+                </div>
+
+                <div class="profile-section">
+                    <h3>Account Actions</h3>
+                    <button type="button" class="auth-submit-btn" onclick="showChangePasswordForm()" style="margin-bottom: 10px;">
+                        Change Password
+                    </button>
+                </div>
+
+                <!-- Change Password Form (initially hidden) -->
+                <div id="change-password-section" class="profile-section" style="display: none;">
+                    <h3>Change Password</h3>
+                    <form id="change-password-form">
+                        <div class="auth-form-group">
+                            <label for="current-password">Current Password</label>
+                            <input type="password" id="current-password" name="current_password" required>
+                        </div>
+                        <div class="auth-form-group">
+                            <label for="new-password">New Password</label>
+                            <input type="password" id="new-password" name="new_password" required minlength="6">
+                        </div>
+                        <div class="auth-form-group">
+                            <label for="confirm-new-password">Confirm New Password</label>
+                            <input type="password" id="confirm-new-password" name="confirm_new_password" required minlength="6">
+                        </div>
+                        <button type="submit" class="auth-submit-btn">Update Password</button>
+                        <button type="button" class="auth-button" onclick="hideChangePasswordForm()" style="width: 100%; margin-top: 10px;">Cancel</button>
+                    </form>
+                </div>
+            </div>
+        </div>
 
     <script>
         const API_BASE_URL = 'http://localhost:8000';
+        
+        // Authentication state management
+        let currentUser = null;
+        let authToken = null;
+
+        // Authentication functions
+        function getAuthHeaders() {
+            if (authToken) {
+                return { 'Authorization': `Bearer ${authToken}` };
+            }
+            return {};
+        }
+
+        function saveAuthToken(token) {
+            authToken = token;
+            localStorage.setItem('auth_token', token);
+        }
+
+        function loadAuthToken() {
+            const token = localStorage.getItem('auth_token');
+            if (token) {
+                authToken = token;
+                return token;
+            }
+            return null;
+        }
+
+        function clearAuthToken() {
+            authToken = null;
+            localStorage.removeItem('auth_token');
+        }
+
+        async function checkAuthStatus() {
+            const token = loadAuthToken();
+            if (!token) {
+                updateUIForLoggedOutUser();
+                return false;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/auth/me`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (response.ok) {
+                    const userData = await response.json();
+                    currentUser = userData;
+                    updateUIForLoggedInUser(userData);
+                    return true;
+                } else {
+                    clearAuthToken();
+                    updateUIForLoggedOutUser();
+                    return false;
+                }
+            } catch (error) {
+                console.error('Auth check failed:', error);
+                clearAuthToken();
+                updateUIForLoggedOutUser();
+                return false;
+            }
+        }
+
+        function updateUIForLoggedInUser(userData) {
+            document.getElementById('login-btn').style.display = 'none';
+            document.getElementById('register-btn').style.display = 'none';
+            document.getElementById('user-info').style.display = 'flex';
+            document.getElementById('user-email').textContent = userData.email;
+            document.getElementById('user-avatar').textContent = userData.email.charAt(0).toUpperCase();
+
+            // Show authenticated tabs
+            document.querySelectorAll('.auth-required').forEach(tab => {
+                tab.style.display = 'block';
+            });
+
+            // Load user preferences and apply them to search form
+            loadAndApplyUserPreferences();
+        }
+
+        function updateUIForLoggedOutUser() {
+            document.getElementById('login-btn').style.display = 'block';
+            document.getElementById('register-btn').style.display = 'block';
+            document.getElementById('user-info').style.display = 'none';
+
+            // Hide authenticated tabs
+            document.querySelectorAll('.auth-required').forEach(tab => {
+                tab.style.display = 'none';
+            });
+
+            // Switch to search tab if user is on an auth-required tab
+            const activeTab = document.querySelector('.tab-content.active');
+            if (activeTab && activeTab.id !== 'search-tab') {
+                switchToTab('search');
+            }
+        }
+
+        // Authentication modal functions
+        function showAuthModal(mode) {
+            const overlay = document.getElementById('auth-modal-overlay');
+            const title = document.getElementById('auth-modal-title');
+            const loginForm = document.getElementById('login-form');
+            const registerForm = document.getElementById('register-form');
+
+            if (mode === 'login') {
+                title.textContent = 'Login';
+                loginForm.style.display = 'block';
+                registerForm.style.display = 'none';
+            } else {
+                title.textContent = 'Create Account';
+                loginForm.style.display = 'none';
+                registerForm.style.display = 'block';
+            }
+
+            clearAuthMessages();
+            overlay.classList.add('show');
+        }
+
+        function hideAuthModal() {
+            document.getElementById('auth-modal-overlay').classList.remove('show');
+            clearAuthMessages();
+            resetAuthForms();
+        }
+
+        function switchAuthMode(mode) {
+            showAuthModal(mode);
+        }
+
+        function clearAuthMessages() {
+            document.getElementById('auth-error').style.display = 'none';
+            document.getElementById('auth-success').style.display = 'none';
+        }
+
+        function showAuthError(message) {
+            const errorDiv = document.getElementById('auth-error');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+            document.getElementById('auth-success').style.display = 'none';
+        }
+
+        function showAuthSuccess(message) {
+            const successDiv = document.getElementById('auth-success');
+            successDiv.textContent = message;
+            successDiv.style.display = 'block';
+            document.getElementById('auth-error').style.display = 'none';
+        }
+
+        function resetAuthForms() {
+            document.getElementById('login-form').reset();
+            document.getElementById('register-form').reset();
+        }
+
+        // Profile modal functions
+        function showProfileModal() {
+            if (!currentUser) return;
+
+            document.getElementById('profile-email').textContent = currentUser.email;
+            document.getElementById('profile-created').textContent = new Date(currentUser.created_at).toLocaleDateString();
+            document.getElementById('profile-modal-overlay').classList.add('show');
+            hideChangePasswordForm();
+        }
+
+        function hideProfileModal() {
+            document.getElementById('profile-modal-overlay').classList.remove('show');
+            document.getElementById('profile-error').style.display = 'none';
+            document.getElementById('profile-success').style.display = 'none';
+        }
+
+        function showChangePasswordForm() {
+            document.getElementById('change-password-section').style.display = 'block';
+        }
+
+        function hideChangePasswordForm() {
+            document.getElementById('change-password-section').style.display = 'none';
+            document.getElementById('change-password-form').reset();
+        }
+
+        async function logout() {
+            clearAuthToken();
+            currentUser = null;
+            updateUIForLoggedOutUser();
+            
+            // Clear saved jobs and other user data
+            savedJobs = [];
+            updateSavedCount(0);
+            
+            // Show success message briefly
+            const resultsContainer = document.getElementById('results-container');
+            resultsContainer.innerHTML = `
+                <div class="success" style="text-align: center;">
+                    <strong>Logged out successfully!</strong><br>
+                    Thank you for using JobSpy. You can continue searching for jobs without an account.
+                </div>
+            `;
+            
+            // Clear the message after 3 seconds
+            setTimeout(() => {
+                resultsContainer.innerHTML = '';
+            }, 3000);
+        }
+
+        // Tab management with authentication check
+        function switchToTab(tabName) {
+            const tabButtons = document.querySelectorAll('.tab-button');
+            const tabContents = document.querySelectorAll('.tab-content');
+
+            // Check if tab requires authentication
+            if (['saved', 'history', 'preferences'].includes(tabName) && !currentUser) {
+                showAuthModal('login');
+                return;
+            }
+
+            // Update button states
+            tabButtons.forEach(btn => btn.classList.remove('active'));
+            document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
+
+            // Update content visibility
+            tabContents.forEach(content => content.classList.remove('active'));
+            document.getElementById(`${tabName}-tab`).classList.add('active');
+
+            // Load content based on tab
+            if (tabName === 'saved') {
+                loadSavedJobs();
+            } else if (tabName === 'history') {
+                loadSearchHistory();
+            } else if (tabName === 'preferences') {
+                loadUserPreferences();
+            }
+        }
+
+        // Authentication form handlers
+        document.getElementById('login-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('login-email').value;
+            const password = document.getElementById('login-password').value;
+            const submitBtn = document.getElementById('login-submit-btn');
+
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Logging in...';
+            clearAuthMessages();
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: email, password })
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    saveAuthToken(result.access_token);
+                    currentUser = result.user;
+                    updateUIForLoggedInUser(result.user);
+                    hideAuthModal();
+                    showAuthSuccess('Logged in successfully!');
+                } else {
+                    showAuthError(result.detail || 'Login failed');
+                }
+            } catch (error) {
+                showAuthError('Network error. Please try again.');
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Login';
+            }
+        });
+
+        document.getElementById('register-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('register-email').value;
+            const password = document.getElementById('register-password').value;
+            const confirmPassword = document.getElementById('register-confirm-password').value;
+            const submitBtn = document.getElementById('register-submit-btn');
+
+            if (password !== confirmPassword) {
+                showAuthError('Passwords do not match');
+                return;
+            }
+
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Creating Account...';
+            clearAuthMessages();
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/auth/register`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: email, email, password })
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    showAuthSuccess('Account created successfully! Please log in.');
+                    setTimeout(() => switchAuthMode('login'), 2000);
+                } else {
+                    showAuthError(result.detail || 'Registration failed');
+                }
+            } catch (error) {
+                showAuthError('Network error. Please try again.');
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Create Account';
+            }
+        });
+
+        document.getElementById('change-password-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const currentPassword = document.getElementById('current-password').value;
+            const newPassword = document.getElementById('new-password').value;
+            const confirmNewPassword = document.getElementById('confirm-new-password').value;
+
+            if (newPassword !== confirmNewPassword) {
+                document.getElementById('profile-error').textContent = 'New passwords do not match';
+                document.getElementById('profile-error').style.display = 'block';
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/auth/change-password`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...getAuthHeaders()
+                    },
+                    body: JSON.stringify({
+                        current_password: currentPassword,
+                        new_password: newPassword
+                    })
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    document.getElementById('profile-success').textContent = 'Password updated successfully!';
+                    document.getElementById('profile-success').style.display = 'block';
+                    hideChangePasswordForm();
+                } else {
+                    document.getElementById('profile-error').textContent = result.detail || 'Failed to update password';
+                    document.getElementById('profile-error').style.display = 'block';
+                }
+            } catch (error) {
+                document.getElementById('profile-error').textContent = 'Network error. Please try again.';
+                document.getElementById('profile-error').style.display = 'block';
+            }
+        });
+
+        // User preferences functions
+        async function loadUserPreferences() {
+            if (!currentUser) return;
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/user/preferences`, {
+                    headers: getAuthHeaders()
+                });
+
+                if (response.ok) {
+                    const preferences = await response.json();
+                    populatePreferencesForm(preferences);
+                }
+            } catch (error) {
+                console.error('Failed to load preferences:', error);
+            }
+        }
+
+        async function loadAndApplyUserPreferences() {
+            if (!currentUser) return;
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/user/preferences`, {
+                    headers: getAuthHeaders()
+                });
+
+                if (response.ok) {
+                    const preferences = await response.json();
+                    applyPreferencesToSearchForm(preferences);
+                }
+            } catch (error) {
+                console.error('Failed to load preferences:', error);
+            }
+        }
+
+        function populatePreferencesForm(preferences) {
+            if (preferences.default_location) {
+                document.getElementById('pref-location').value = preferences.default_location;
+            }
+            if (preferences.default_results_wanted) {
+                document.getElementById('pref-results').value = preferences.default_results_wanted;
+            }
+            if (preferences.default_job_type) {
+                document.getElementById('pref-job-type').value = preferences.default_job_type;
+            }
+            if (preferences.max_salary) {
+                document.getElementById('pref-max-salary').value = preferences.max_salary;
+            }
+
+            document.getElementById('pref-remote').checked = preferences.prefer_remote || false;
+            document.getElementById('pref-email-alerts').checked = preferences.email_alerts || false;
+            document.getElementById('pref-save-searches').checked = preferences.save_search_history || false;
+
+            // Set preferred sites
+            if (preferences.preferred_sites) {
+                const sites = Array.isArray(preferences.preferred_sites) ? preferences.preferred_sites : [];
+                document.querySelectorAll('input[name="preferred_sites"]').forEach(checkbox => {
+                    checkbox.checked = sites.includes(checkbox.value);
+                });
+            }
+        }
+
+        function applyPreferencesToSearchForm(preferences) {
+            if (preferences.default_location) {
+                document.getElementById('location').value = preferences.default_location;
+            }
+            if (preferences.default_results_wanted) {
+                document.getElementById('results-wanted').value = preferences.default_results_wanted;
+            }
+            if (preferences.default_job_type) {
+                document.getElementById('job-type').value = preferences.default_job_type;
+            }
+            if (preferences.max_salary) {
+                document.getElementById('max-salary').value = preferences.max_salary;
+            }
+
+            document.getElementById('is-remote').checked = preferences.prefer_remote || false;
+
+            // Set preferred sites in search form
+            if (preferences.preferred_sites) {
+                const sites = Array.isArray(preferences.preferred_sites) ? preferences.preferred_sites : [];
+                document.querySelectorAll('input[name="site_name"]').forEach(checkbox => {
+                    checkbox.checked = sites.includes(checkbox.value);
+                });
+            }
+        }
+
+        document.getElementById('save-preferences-btn').addEventListener('click', async () => {
+            if (!currentUser) return;
+
+            const formData = new FormData(document.getElementById('preferences-form'));
+            const preferences = {};
+
+            // Handle regular form fields
+            for (let [key, value] of formData.entries()) {
+                if (key !== 'preferred_sites') {
+                    if (value.trim() !== '') {
+                        if (key === 'default_results_wanted' || key === 'max_salary') {
+                            preferences[key] = parseInt(value);
+                        } else {
+                            preferences[key] = value;
+                        }
+                    }
+                }
+            }
+
+            // Handle checkboxes
+            preferences.prefer_remote = document.getElementById('pref-remote').checked;
+            preferences.email_alerts = document.getElementById('pref-email-alerts').checked;
+            preferences.save_search_history = document.getElementById('pref-save-searches').checked;
+
+            // Handle preferred sites
+            const preferredSites = [];
+            document.querySelectorAll('input[name="preferred_sites"]:checked').forEach(checkbox => {
+                preferredSites.push(checkbox.value);
+            });
+            preferences.preferred_sites = preferredSites;
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/user/preferences`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...getAuthHeaders()
+                    },
+                    body: JSON.stringify(preferences)
+                });
+
+                if (response.ok) {
+                    // Apply preferences to search form immediately
+                    applyPreferencesToSearchForm(preferences);
+                    
+                    // Show success message briefly
+                    const btn = document.getElementById('save-preferences-btn');
+                    const originalText = btn.textContent;
+                    btn.textContent = '✅ Saved!';
+                    btn.style.background = '#48bb78';
+                    setTimeout(() => {
+                        btn.textContent = originalText;
+                        btn.style.background = '';
+                    }, 2000);
+                } else {
+                    alert('Failed to save preferences. Please try again.');
+                }
+            } catch (error) {
+                console.error('Failed to save preferences:', error);
+                alert('Network error. Please try again.');
+            }
+        });
+
+        // Search history functions
+        async function loadSearchHistory() {
+            if (!currentUser) return;
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/user/search-history`, {
+                    headers: getAuthHeaders()
+                });
+
+                if (response.ok) {
+                    const history = await response.json();
+                    displaySearchHistory(history);
+                } else {
+                    document.getElementById('search-history-container').innerHTML = `
+                        <div class="error">Failed to load search history</div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Failed to load search history:', error);
+                document.getElementById('search-history-container').innerHTML = `
+                    <div class="error">Network error loading search history</div>
+                `;
+            }
+        }
+
+        function displaySearchHistory(searches) {
+            const container = document.getElementById('search-history-container');
+            const countElement = document.getElementById('history-count');
+
+            countElement.textContent = `${searches.length} recent searches`;
+
+            if (searches.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📈</div>
+                        <h3>No search history yet</h3>
+                        <p>Your search history will appear here once you start searching for jobs.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            let html = '';
+            searches.forEach(search => {
+                const searchDate = new Date(search.searched_at).toLocaleString();
+                html += `
+                    <div class="saved-job-card" style="border-left-color: #667eea;">
+                        <div class="saved-job-meta">
+                            <div>
+                                <span class="saved-date">Searched on ${searchDate}</span>
+                                <div style="margin-top: 5px;">
+                                    <strong>Search Term:</strong> ${escapeHtml(search.search_term || 'N/A')}<br>
+                                    <strong>Location:</strong> ${escapeHtml(search.location || 'N/A')}<br>
+                                    <strong>Results Found:</strong> ${search.results_count || 0}
+                                </div>
+                            </div>
+                            <div class="saved-actions">
+                                <button onclick="repeatSearch('${search.id}')" class="job-link" style="background: #48bb78;">
+                                    🔄 Repeat Search
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+
+            container.innerHTML = html;
+        }
+
+        async function repeatSearch(searchId) {
+            try {
+                const response = await fetch(`${API_BASE_URL}/user/search-history/${searchId}`, {
+                    headers: getAuthHeaders()
+                });
+
+                if (response.ok) {
+                    const searchData = await response.json();
+                    
+                    // Populate search form with historical data
+                    if (searchData.search_term) document.getElementById('search-term').value = searchData.search_term;
+                    if (searchData.location) document.getElementById('location').value = searchData.location;
+                    if (searchData.company_filter) document.getElementById('company-filter').value = searchData.company_filter;
+                    if (searchData.job_type) document.getElementById('job-type').value = searchData.job_type;
+                    if (searchData.results_wanted) document.getElementById('results-wanted').value = searchData.results_wanted;
+                    
+                    // Switch to search tab
+                    switchToTab('search');
+                    
+                    // Scroll to search form
+                    document.getElementById('job-search-form').scrollIntoView({ behavior: 'smooth' });
+                }
+            } catch (error) {
+                console.error('Failed to load search data:', error);
+                alert('Failed to load search data. Please try again.');
+            }
+        }
+
+        async function saveSearchToHistory(searchData, resultsCount) {
+            if (!currentUser) return;
+
+            try {
+                await fetch(`${API_BASE_URL}/user/saved-searches`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...getAuthHeaders()
+                    },
+                    body: JSON.stringify({
+                        ...searchData,
+                        results_count: resultsCount
+                    })
+                });
+            } catch (error) {
+                console.error('Failed to save search to history:', error);
+                // Don't show error to user as this is a background operation
+            }
+        }
 
         document.getElementById('job-search-form').addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -951,6 +1997,7 @@
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
+                        ...getAuthHeaders()
                     },
                     body: JSON.stringify(searchData)
                 });
@@ -959,6 +2006,11 @@
                 
                 if (!response.ok) {
                     throw new Error(result.detail || 'Search failed');
+                }
+
+                // Save search to history if user is authenticated
+                if (currentUser && result.success) {
+                    saveSearchToHistory(searchData, result.job_count || 0);
                 }
                 
                 displayResults(result);
@@ -1235,6 +2287,27 @@
                 </div>`;
             }
             
+            // Add authentication notice for non-authenticated users
+            let authNotice = '';
+            if (!currentUser && jobsToDisplay.length > 0) {
+                authNotice = `
+                    <div style="background: linear-gradient(135deg, #e6f3ff 0%, #f0f8ff 100%); border: 2px solid #667eea; border-radius: 8px; padding: 15px; margin-bottom: 20px; text-align: center;">
+                        <div style="color: #2d3748; font-weight: 600; margin-bottom: 8px;">
+                            💡 Get More from JobSpy!
+                        </div>
+                        <div style="color: #4a5568; font-size: 0.9rem; margin-bottom: 10px;">
+                            Create a free account to save jobs, track your applications, and access your search history.
+                        </div>
+                        <button onclick="showAuthModal('register')" class="auth-button" style="position: static; transform: none; margin-right: 10px;">
+                            Create Account
+                        </button>
+                        <button onclick="showAuthModal('login')" class="auth-button" style="position: static; transform: none;">
+                            Login
+                        </button>
+                    </div>
+                `;
+            }
+
             let html = `
                 <div class="results">
                     <div class="results-header">
@@ -1244,6 +2317,7 @@
                             ${searchTerm ? '<br>🎯 Jobs ranked by relevance to your search term' : ''}
                         </div>
                     </div>
+                    ${authNotice}
                     ${searchSummary}
             `;
             
@@ -1305,9 +2379,11 @@
                         <div class="job-links">
                             ${job.job_url_direct ? `<a href="${job.job_url_direct}" target="_blank" class="job-link">View Job</a>` : (job.job_url ? `<a href="${job.job_url}" target="_blank" class="job-link">View Job</a>` : '')}
                             ${job.company_url ? `<a href="${job.company_url}" target="_blank" class="job-link">Company Page</a>` : ''}
-                            <button onclick="handleSaveJob(${index})" class="save-job-btn" id="save-btn-${index}">💾 Save Job</button>
+                            <button onclick="handleSaveJob(${index})" class="save-job-btn" id="save-btn-${index}">
+                                ${currentUser ? '💾 Save Job' : '💾 Login to Save'}
+                            </button>
                             ${job.description ? `<button class="job-link" onclick="openDescriptionModal(${index})" type="button">📄 View Description</button>` : ''}
-                            <button onclick="markNotInterestedFromSearch(${index})" class="job-link" style="background: #e53e3e; color: white;">🚫 Not Interested</button>
+                            ${currentUser ? `<button onclick="markNotInterestedFromSearch(${index})" class="job-link" style="background: #e53e3e; color: white;">🚫 Not Interested</button>` : ''}
                         </div>
                     </div>
                 `;
@@ -1595,30 +2671,25 @@
             tabButtons.forEach(button => {
                 button.addEventListener('click', () => {
                     const targetTab = button.dataset.tab;
-                    
-                    // Update button states
-                    tabButtons.forEach(btn => btn.classList.remove('active'));
-                    button.classList.add('active');
-                    
-                    // Update content visibility
-                    tabContents.forEach(content => content.classList.remove('active'));
-                    document.getElementById(`${targetTab}-tab`).classList.add('active');
-                    
-                    // Load saved jobs when switching to saved tab
-                    if (targetTab === 'saved') {
-                        loadSavedJobs();
-                    }
+                    switchToTab(targetTab);
                 });
             });
         }
 
         // Saved Jobs Management Functions
         async function saveJob(jobData, notes = '') {
+            // Check if user is authenticated
+            if (!currentUser) {
+                showAuthModal('login');
+                return false;
+            }
+
             try {
-                const response = await fetch(`${API_BASE_URL}/save-job`, {
+                const response = await fetch(`${API_BASE_URL}/user/save-job`, {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json'
+                        'Content-Type': 'application/json',
+                        ...getAuthHeaders()
                     },
                     body: JSON.stringify({
                         job_data: jobData,
@@ -1653,9 +2724,12 @@
         }
 
         async function deleteSavedJob(jobId) {
+            if (!currentUser) return false;
+
             try {
-                const response = await fetch(`${API_BASE_URL}/saved-job/${jobId}`, {
-                    method: 'DELETE'
+                const response = await fetch(`${API_BASE_URL}/user/saved-job/${jobId}`, {
+                    method: 'DELETE',
+                    headers: getAuthHeaders()
                 });
 
                 const result = await response.json();
@@ -1678,8 +2752,16 @@
 
         // Update loadSavedJobs to use the categorized endpoint
         async function loadSavedJobs() {
+            if (!currentUser) {
+                savedJobs = [];
+                updateSavedCount(0);
+                return;
+            }
+
             try {
-                const response = await fetch(`${API_BASE_URL}/saved-jobs/categorized`);
+                const response = await fetch(`${API_BASE_URL}/user/saved-jobs/categorized`, {
+                    headers: getAuthHeaders()
+                });
                 const result = await response.json();
                 if (result.success) {
                     savedJobs = [...result.saved_jobs.saved_not_applied, ...result.saved_jobs.save_for_later, ...result.saved_jobs.applied, ...result.saved_jobs.not_interested];
@@ -1856,13 +2938,16 @@
         }
 
         async function markJobStatus(jobId, applied) {
+            if (!currentUser) return;
+
             try {
                 // Ensure boolean is sent as true/false, not string
                 const boolValue = applied ? 'true' : 'false';
-                const response = await fetch(`${API_BASE_URL}/saved-job/${jobId}/applied?applied=${boolValue}`, {
+                const response = await fetch(`${API_BASE_URL}/user/saved-job/${jobId}/applied?applied=${boolValue}`, {
                     method: 'PUT',
                     headers: {
-                        'Content-Type': 'application/json'
+                        'Content-Type': 'application/json',
+                        ...getAuthHeaders()
                     }
                 });
 
@@ -1913,11 +2998,17 @@
         function updateSaveButtonStates() {
             currentJobs.forEach((job, index) => {
                 const button = document.getElementById(`save-btn-${index}`);
-                if (button && isJobSaved(job)) {
+                if (!button) return;
+
+                if (!currentUser) {
+                    button.innerHTML = '💾 Login to Save';
+                    button.classList.remove('saved');
+                    button.disabled = false;
+                } else if (isJobSaved(job)) {
                     button.innerHTML = '✅ Saved';
                     button.classList.add('saved');
                     button.disabled = true;
-                } else if (button) {
+                } else {
                     button.innerHTML = '💾 Save Job';
                     button.classList.remove('saved');
                     button.disabled = false;
@@ -1953,11 +3044,14 @@
 
         // Add markSaveForLaterStatus function
         async function markSaveForLaterStatus(jobId, saveForLater) {
+            if (!currentUser) return;
+
             try {
-                const response = await fetch(`${API_BASE_URL}/saved-job/${jobId}/save-for-later?save_for_later=${saveForLater}`, {
+                const response = await fetch(`${API_BASE_URL}/user/saved-job/${jobId}/save-for-later?save_for_later=${saveForLater}`, {
                     method: 'PUT',
                     headers: {
-                        'Content-Type': 'application/json'
+                        'Content-Type': 'application/json',
+                        ...getAuthHeaders()
                     }
                 });
                 const result = await response.json();
@@ -1993,11 +3087,14 @@
 
         // Add markNotInterestedStatus function
         async function markNotInterestedStatus(jobId, notInterested) {
+            if (!currentUser) return;
+
             try {
-                const response = await fetch(`${API_BASE_URL}/saved-job/${jobId}/not-interested?not_interested=${notInterested}`, {
+                const response = await fetch(`${API_BASE_URL}/user/saved-job/${jobId}/not-interested?not_interested=${notInterested}`, {
                     method: 'PUT',
                     headers: {
-                        'Content-Type': 'application/json'
+                        'Content-Type': 'application/json',
+                        ...getAuthHeaders()
                     }
                 });
                 const result = await response.json();
@@ -2013,7 +3110,10 @@
             }
         }
 
-        // On page load, prefill API key if available and check backend
+        // Add event handlers for history and preferences refresh
+        document.getElementById('refresh-history-btn').addEventListener('click', loadSearchHistory);
+
+        // On page load, check authentication and initialize
         window.addEventListener('load', async () => {
             // Initialize tabs
             initializeTabs();
@@ -2025,16 +3125,25 @@
                 apiKeyInput.value = savedKey;
             }
             
-            // Initialize saved jobs refresh button
+            // Initialize refresh buttons
             document.getElementById('refresh-saved-btn').addEventListener('click', loadSavedJobs);
             
-            // Check if API is available and load saved jobs
+            // Check if API is available
             try {
                 const response = await fetch(`${API_BASE_URL}/health`);
                 if (response.ok) {
                     console.log('✅ Backend API is available');
-                    // Load saved jobs count
-                    await loadSavedJobs();
+                    
+                    // Check authentication status
+                    const isAuthenticated = await checkAuthStatus();
+                    
+                    if (isAuthenticated) {
+                        console.log('✅ User is authenticated');
+                        // Load saved jobs for authenticated users
+                        await loadSavedJobs();
+                    } else {
+                        console.log('ℹ️ User is not authenticated');
+                    }
                 } else {
                     throw new Error('API health check failed');
                 }

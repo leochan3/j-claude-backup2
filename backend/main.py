@@ -1,11 +1,11 @@
-from fastapi import FastAPI, HTTPException, Request, Query
+from fastapi import FastAPI, HTTPException, Request, Query, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 import pandas as pd
 from jobspy import scrape_jobs
 import uvicorn
-from datetime import datetime
+from datetime import datetime, timedelta
 import re
 import os
 from dotenv import load_dotenv
@@ -13,6 +13,18 @@ import json
 import asyncio
 from openai import OpenAI
 import uuid
+from sqlalchemy.orm import Session
+from database import create_tables, get_db, User
+from models import (
+    UserCreate, UserLogin, UserResponse, Token,
+    UserPreferencesCreate, UserPreferencesUpdate, UserPreferencesResponse,
+    SaveJobRequest as NewSaveJobRequest, SavedJobUpdate, SavedJobResponse as NewSavedJobResponse,
+    SearchHistoryResponse, SavedSearchCreate, SavedSearchUpdate, SavedSearchResponse,
+    AuthenticatedJobSearchRequest
+)
+from auth import authenticate_user, create_access_token, get_current_active_user, ACCESS_TOKEN_EXPIRE_MINUTES
+from user_service import UserService
+import time
 
 # Load environment variables
 load_dotenv()
@@ -38,10 +50,13 @@ else:
     print("OpenAI API key not found or not configured. AI filtering will not be available.")
     print("To enable AI features, add your OpenAI API key to .env file")
 
+# Initialize database
+create_tables()
+
 app = FastAPI(
-    title="JobSpy API with AI Filtering",
-    description="Job scraping API using JobSpy library with OpenAI-powered intelligent filtering",
-    version="2.0.0"
+    title="JobSpy API with User Accounts",
+    description="Job scraping API with user authentication, preferences, and personalized job management",
+    version="3.0.0"
 )
 
 # Add CORS middleware to allow frontend access
@@ -219,18 +234,27 @@ def extract_max_years_experience(description: str) -> Optional[int]:
 @app.get("/")
 async def root():
     return {
-        "message": "JobSpy API with AI Filtering is running!", 
+        "message": "JobSpy API with User Accounts is running!", 
         "endpoints": [
             "/docs - API documentation",
-            "/search-jobs - Search for jobs",
+            "/auth/register - User registration",
+            "/auth/login - User login",
+            "/search-jobs - Search for jobs (authenticated)",
             "/ai-filter-jobs - AI-powered job analysis and filtering",
+            "/user/preferences - Manage user preferences",
+            "/user/saved-jobs - Manage saved jobs",
+            "/user/search-history - View search history",
+            "/user/saved-searches - Manage saved search templates",
             "/supported-sites - Get supported job sites",
             "/supported-countries - Get supported countries",
             "/health - Health check"
         ],
-        "ai_features": {
-            "available": openai_client is not None,
-            "model": OPENAI_MODEL if openai_client else "Not configured"
+        "features": {
+            "user_accounts": True,
+            "personalized_preferences": True,
+            "job_session_storage": True,
+            "ai_filtering": openai_client is not None,
+            "ai_model": OPENAI_MODEL if openai_client else "Not configured"
         }
     }
 
@@ -257,6 +281,61 @@ async def get_supported_sites():
             "naukri": "India-focused job board"
         }
     }
+
+# Authentication Endpoints
+@app.post("/auth/register", response_model=UserResponse)
+async def register_user(user_create: UserCreate, db: Session = Depends(get_db)):
+    """Register a new user account"""
+    return UserService.create_user(db, user_create)
+
+@app.post("/auth/login", response_model=Token)
+async def login_user(user_login: UserLogin, db: Session = Depends(get_db)):
+    """Login and get access token"""
+    user = authenticate_user(db, user_login.username, user_login.password)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": user.username}, expires_delta=access_token_expires
+    )
+    return Token(
+        access_token=access_token,
+        token_type="bearer",
+        user=UserResponse.from_orm(user)
+    )
+
+@app.get("/auth/me", response_model=UserResponse)
+async def get_current_user_info(current_user: User = Depends(get_current_active_user)):
+    """Get current user information"""
+    return UserResponse.from_orm(current_user)
+
+# User Preferences Endpoints
+@app.get("/user/preferences", response_model=UserPreferencesResponse)
+async def get_user_preferences(
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Get user preferences"""
+    preferences = UserService.get_user_preferences(db, current_user.id)
+    if not preferences:
+        raise HTTPException(status_code=404, detail="User preferences not found")
+    return UserPreferencesResponse.from_orm(preferences)
+
+@app.put("/user/preferences", response_model=UserPreferencesResponse)
+async def update_user_preferences(
+    preferences_update: UserPreferencesUpdate,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Update user preferences"""
+    updated_preferences = UserService.update_user_preferences(
+        db, current_user.id, preferences_update
+    )
+    return UserPreferencesResponse.from_orm(updated_preferences)
 
 @app.get("/supported-countries")
 async def get_supported_countries():
@@ -333,31 +412,55 @@ async def search_single_company(search_term: str, company: str, search_params: d
 
 
 @app.post("/search-jobs", response_model=JobSearchResponse)
-async def search_jobs(request: JobSearchRequest):
-    """Search for jobs using JobSpy with multi-company, multi-title, and multi-location support, with optional max years of experience filter."""
+async def search_jobs(
+    request: AuthenticatedJobSearchRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Search for jobs using JobSpy with user preferences and search history tracking."""
     try:
+        start_time = time.time()
+        
+        # Get user preferences to fill in missing values
+        user_preferences = UserService.get_user_preferences(db, current_user.id)
+        
+        # Apply user preferences as defaults for missing values
+        effective_request = JobSearchRequest(
+            site_name=request.site_name or (user_preferences.default_sites if user_preferences else ["indeed"]),
+            search_term=request.search_term,
+            company_filter=request.company_filter,
+            location=request.location or (user_preferences.default_location if user_preferences else "USA"),
+            distance=request.distance or (user_preferences.default_distance if user_preferences else 50),
+            job_type=request.job_type or (user_preferences.default_job_type if user_preferences else None),
+            is_remote=request.is_remote if request.is_remote is not None else (user_preferences.default_remote if user_preferences else None),
+            results_wanted=request.results_wanted or (user_preferences.default_results_wanted if user_preferences else 100),
+            hours_old=request.hours_old or (user_preferences.default_hours_old if user_preferences else 168),
+            country_indeed=request.country_indeed or (user_preferences.default_country if user_preferences else "USA"),
+            max_years_experience=request.max_years_experience or (user_preferences.default_max_experience if user_preferences else None)
+        )
+        
         # Parse multiple job titles (comma-separated)
-        job_titles = [t.strip() for t in request.search_term.split(',') if t.strip()]
+        job_titles = [t.strip() for t in effective_request.search_term.split(',') if t.strip()]
         # Parse multiple companies (comma-separated)
         companies = []
-        if request.company_filter and request.company_filter.strip():
-            companies = [company.strip() for company in request.company_filter.split(',') if company.strip()]
+        if effective_request.company_filter and effective_request.company_filter.strip():
+            companies = [company.strip() for company in effective_request.company_filter.split(',') if company.strip()]
         # Parse multiple locations (comma-separated)
-        locations = [loc.strip() for loc in request.location.split(',') if loc.strip()] if request.location else ["USA"]
+        locations = [loc.strip() for loc in effective_request.location.split(',') if loc.strip()] if effective_request.location else ["USA"]
         # Prepare base parameters for JobSpy (except location)
         base_search_params = {
-            "site_name": request.site_name,
+            "site_name": effective_request.site_name,
             # location will be set per-iteration
-            "distance": request.distance,
-            "job_type": request.job_type,
-            "is_remote": request.is_remote,
-            "results_wanted": request.results_wanted,
-            "hours_old": request.hours_old,
-            "country_indeed": request.country_indeed,
-            "easy_apply": request.easy_apply,
-            "description_format": request.description_format,
-            "offset": request.offset,
-            "verbose": request.verbose
+            "distance": effective_request.distance,
+            "job_type": effective_request.job_type,
+            "is_remote": effective_request.is_remote,
+            "results_wanted": effective_request.results_wanted,
+            "hours_old": effective_request.hours_old,
+            "country_indeed": effective_request.country_indeed,
+            "easy_apply": getattr(effective_request, 'easy_apply', None),
+            "description_format": getattr(effective_request, 'description_format', 'markdown'),
+            "offset": getattr(effective_request, 'offset', 0),
+            "verbose": getattr(effective_request, 'verbose', 2)
         }
         base_search_params = {k: v for k, v in base_search_params.items() if v is not None}
         all_jobs_df = pd.DataFrame()
@@ -413,11 +516,11 @@ async def search_jobs(request: JobSearchRequest):
                     if pd.isna(value):
                         job[key] = None
             # Filter by max_years_experience if set
-            if request.max_years_experience is not None:
+            if effective_request.max_years_experience is not None:
                 filtered_jobs = []
                 for job in jobs_list:
                     max_yoe = extract_max_years_experience(job.get('description', ''))
-                    if max_yoe is None or max_yoe <= request.max_years_experience:
+                    if max_yoe is None or max_yoe <= effective_request.max_years_experience:
                         filtered_jobs.append(job)
                 jobs_list = filtered_jobs
             filter_info = ""
@@ -430,14 +533,25 @@ async def search_jobs(request: JobSearchRequest):
                 filter_info += f" (titles: {', '.join(job_titles)})"
             if len(locations) > 1:
                 filter_info += f" (locations: {', '.join(locations)})"
-            if request.max_years_experience is not None:
-                filter_info += f" (max YOE: {request.max_years_experience})"
+            if effective_request.max_years_experience is not None:
+                filter_info += f" (max YOE: {effective_request.max_years_experience})"
+            
+            # Save search to history if requested
+            search_duration = int(time.time() - start_time)
+            if getattr(request, 'save_search', True):  # Default to saving search history
+                UserService.add_search_history(
+                    db, current_user.id,
+                    effective_request.dict(),
+                    len(jobs_list),
+                    search_duration
+                )
+            
             return JobSearchResponse(
                 success=True,
                 message=f"Successfully found {len(jobs_list)} jobs{filter_info}",
                 job_count=len(jobs_list),
                 jobs=jobs_list,
-                search_params={**base_search_params, "company_filter": request.company_filter, "search_term": request.search_term, "location": request.location, "max_years_experience": request.max_years_experience},
+                search_params={**base_search_params, "company_filter": effective_request.company_filter, "search_term": effective_request.search_term, "location": effective_request.location, "max_years_experience": effective_request.max_years_experience},
                 timestamp=datetime.now().isoformat()
             )
         else:
@@ -451,12 +565,22 @@ async def search_jobs(request: JobSearchRequest):
                 filter_info += f" for titles: {', '.join(job_titles)}"
             if len(locations) > 1:
                 filter_info += f" for locations: {', '.join(locations)}"
+            # Still save search to history even if no results
+            search_duration = int(time.time() - start_time)
+            if getattr(request, 'save_search', True):
+                UserService.add_search_history(
+                    db, current_user.id,
+                    effective_request.dict(),
+                    0,
+                    search_duration
+                )
+            
             return JobSearchResponse(
                 success=True,
                 message=f"No jobs found matching your criteria{filter_info}",
                 job_count=0,
                 jobs=[],
-                search_params={**base_search_params, "company_filter": request.company_filter, "search_term": request.search_term, "location": request.location},
+                search_params={**base_search_params, "company_filter": effective_request.company_filter, "search_term": effective_request.search_term, "location": effective_request.location},
                 timestamp=datetime.now().isoformat()
             )
     except Exception as e:
@@ -698,7 +822,165 @@ async def ai_filter_jobs(request: AIFilterRequest, http_request: Request):
             detail=f"Error in AI filtering: {str(e)}"
         )
 
-# Saved Jobs Endpoints
+# User Saved Jobs Endpoints
+
+@app.post("/user/save-job", response_model=NewSavedJobResponse)
+async def save_job_for_user(
+    request: NewSaveJobRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Save a job for the authenticated user"""
+    saved_job = UserService.save_job(db, current_user.id, request)
+    return NewSavedJobResponse.from_orm(saved_job)
+
+@app.get("/user/saved-jobs")
+async def get_user_saved_jobs(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=1000),
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Get saved jobs for the authenticated user"""
+    saved_jobs = UserService.get_saved_jobs(db, current_user.id, skip, limit)
+    return {
+        "success": True,
+        "message": f"Retrieved {len(saved_jobs)} saved jobs",
+        "saved_jobs": [NewSavedJobResponse.from_orm(job) for job in saved_jobs],
+        "total_count": len(saved_jobs),
+        "timestamp": datetime.now().isoformat()
+    }
+
+@app.get("/user/saved-jobs/categorized")
+async def get_user_saved_jobs_categorized(
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Get saved jobs categorized by status for the authenticated user"""
+    categorized_jobs = UserService.get_categorized_jobs(db, current_user.id)
+    
+    # Convert to response format
+    categorized_response = {}
+    for category, jobs in categorized_jobs.items():
+        categorized_response[category] = [NewSavedJobResponse.from_orm(job) for job in jobs]
+    
+    return {
+        "success": True,
+        "message": f"Retrieved categorized saved jobs",
+        "saved_jobs": categorized_response,
+        "counts": {category: len(jobs) for category, jobs in categorized_jobs.items()},
+        "timestamp": datetime.now().isoformat()
+    }
+
+@app.put("/user/saved-job/{job_id}")
+async def update_user_saved_job(
+    job_id: str,
+    job_update: SavedJobUpdate,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Update a saved job for the authenticated user"""
+    updated_job = UserService.update_saved_job(db, current_user.id, job_id, job_update)
+    if not updated_job:
+        raise HTTPException(status_code=404, detail="Saved job not found")
+    return {
+        "success": True,
+        "message": "Job updated successfully",
+        "saved_job": NewSavedJobResponse.from_orm(updated_job)
+    }
+
+@app.delete("/user/saved-job/{job_id}")
+async def delete_user_saved_job(
+    job_id: str,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Delete a saved job for the authenticated user"""
+    deleted = UserService.delete_saved_job(db, current_user.id, job_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Saved job not found")
+    return {
+        "success": True,
+        "message": "Job deleted successfully"
+    }
+
+# User Search History Endpoints
+
+@app.get("/user/search-history")
+async def get_user_search_history(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Get search history for the authenticated user"""
+    search_history = UserService.get_search_history(db, current_user.id, skip, limit)
+    return {
+        "success": True,
+        "message": f"Retrieved {len(search_history)} search history entries",
+        "search_history": [SearchHistoryResponse.from_orm(entry) for entry in search_history],
+        "timestamp": datetime.now().isoformat()
+    }
+
+# User Saved Searches Endpoints
+
+@app.post("/user/saved-searches", response_model=SavedSearchResponse)
+async def create_saved_search(
+    search_create: SavedSearchCreate,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Create a saved search template for the authenticated user"""
+    saved_search = UserService.create_saved_search(db, current_user.id, search_create)
+    return SavedSearchResponse.from_orm(saved_search)
+
+@app.get("/user/saved-searches")
+async def get_saved_searches(
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Get saved search templates for the authenticated user"""
+    saved_searches = UserService.get_saved_searches(db, current_user.id)
+    return {
+        "success": True,
+        "message": f"Retrieved {len(saved_searches)} saved searches",
+        "saved_searches": [SavedSearchResponse.from_orm(search) for search in saved_searches],
+        "timestamp": datetime.now().isoformat()
+    }
+
+@app.put("/user/saved-searches/{search_id}")
+async def update_saved_search(
+    search_id: str,
+    search_update: SavedSearchUpdate,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Update a saved search template for the authenticated user"""
+    updated_search = UserService.update_saved_search(db, current_user.id, search_id, search_update)
+    if not updated_search:
+        raise HTTPException(status_code=404, detail="Saved search not found")
+    return {
+        "success": True,
+        "message": "Saved search updated successfully",
+        "saved_search": SavedSearchResponse.from_orm(updated_search)
+    }
+
+@app.delete("/user/saved-searches/{search_id}")
+async def delete_saved_search(
+    search_id: str,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Delete a saved search template for the authenticated user"""
+    deleted = UserService.delete_saved_search(db, current_user.id, search_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Saved search not found")
+    return {
+        "success": True,
+        "message": "Saved search deleted successfully"
+    }
+
+# Legacy Saved Jobs Endpoints (for backwards compatibility)
 
 @app.post("/save-job", response_model=SavedJobResponse)
 async def save_job(request: SaveJobRequest):
