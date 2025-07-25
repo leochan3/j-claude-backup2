@@ -103,15 +103,25 @@ class UserService:
     @staticmethod
     def save_job(db: Session, user_id: str, job_request: SaveJobRequest) -> UserSavedJob:
         """Save a job for a user."""
-        # Check if job already saved by this user
-        job_id = job_request.job_data.get('id') or job_request.job_data.get('job_url')
-        if job_id:
-            existing_job = db.query(UserSavedJob).filter(
-                UserSavedJob.user_id == user_id,
-                UserSavedJob.job_data['id'].astext == str(job_id)
-            ).first()
-            
-            if existing_job:
+        # Check if job already saved by this user using job_url or title+company
+        job_url = job_request.job_data.get('job_url')
+        job_title = job_request.job_data.get('title')
+        job_company = job_request.job_data.get('company')
+        
+        # Query for existing jobs by this user
+        existing_jobs = db.query(UserSavedJob).filter(UserSavedJob.user_id == user_id).all()
+        
+        for existing_job in existing_jobs:
+            # Check by job_url first (most reliable)
+            if job_url and existing_job.job_data.get('job_url') == job_url:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Job already saved"
+                )
+            # Check by title + company combination
+            if (job_title and job_company and 
+                existing_job.job_data.get('title') == job_title and 
+                existing_job.job_data.get('company') == job_company):
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Job already saved"

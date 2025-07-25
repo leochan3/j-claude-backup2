@@ -2713,12 +2713,13 @@
                     // Already saved and present in savedJobs
                     return true;
                 } else {
-                    alert(result.message);
+                    console.error('Save job failed:', result);
+                    alert(result.message || result.detail || 'Failed to save job');
                     return false;
                 }
             } catch (error) {
                 console.error('Error saving job:', error);
-                alert('Failed to save job. Please try again.');
+                alert('Network error: Failed to save job. Please check if backend is running.');
                 return false;
             }
         }
@@ -2764,9 +2765,9 @@
                 });
                 const result = await response.json();
                 if (result.success) {
-                    savedJobs = [...result.saved_jobs.saved_not_applied, ...result.saved_jobs.save_for_later, ...result.saved_jobs.applied, ...result.saved_jobs.not_interested];
+                    savedJobs = [...(result.saved_jobs.pending || []), ...(result.saved_jobs.save_for_later || []), ...(result.saved_jobs.applied || []), ...(result.saved_jobs.not_interested || [])];
                     displayCategorizedSavedJobs(result);
-                    updateSavedCount(result.counts.total);
+                    updateSavedCount(result.counts.all || 0);
                     updateSaveButtonStates();
                 } else {
                     document.getElementById('saved-jobs-container').innerHTML = `
@@ -2784,11 +2785,11 @@
         function displayCategorizedSavedJobs(result) {
             const container = document.getElementById('saved-jobs-container');
             const countElement = document.getElementById('saved-jobs-count');
-            const totalCount = result.counts.total;
-            const savedCount = result.counts.saved_not_applied;
-            const saveForLaterCount = result.counts.save_for_later;
-            const appliedCount = result.counts.applied;
-            const notInterestedCount = result.counts.not_interested;
+            const totalCount = result.counts.all || 0;
+            const savedCount = result.counts.pending || 0;
+            const saveForLaterCount = result.counts.save_for_later || 0;
+            const appliedCount = result.counts.applied || 0;
+            const notInterestedCount = result.counts.not_interested || 0;
             countElement.textContent = `${totalCount} total jobs (${savedCount} saved, ${saveForLaterCount} save for later, ${appliedCount} applied, ${notInterestedCount} not interested)`;
             if (totalCount === 0) {
                 container.innerHTML = `
@@ -2811,7 +2812,7 @@
             if (savedCount === 0) {
                 html += `<div style="text-align: center; color: #666; padding: 20px; font-style: italic;">No saved jobs waiting for application</div>`;
             } else {
-                result.saved_jobs.saved_not_applied.forEach(savedJob => {
+                (result.saved_jobs.pending || []).forEach(savedJob => {
                     html += renderSavedJobCard(savedJob, 'saved');
                 });
             }
