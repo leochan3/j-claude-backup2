@@ -824,7 +824,7 @@ async def ai_filter_jobs(request: AIFilterRequest, http_request: Request):
 
 # User Saved Jobs Endpoints
 
-@app.post("/user/save-job", response_model=NewSavedJobResponse)
+@app.post("/user/save-job")
 async def save_job_for_user(
     request: NewSaveJobRequest,
     current_user: User = Depends(get_current_active_user),
@@ -832,7 +832,11 @@ async def save_job_for_user(
 ):
     """Save a job for the authenticated user"""
     saved_job = UserService.save_job(db, current_user.id, request)
-    return NewSavedJobResponse.from_orm(saved_job)
+    return {
+        "success": True,
+        "message": "Job saved successfully",
+        "saved_job": NewSavedJobResponse.from_orm(saved_job)
+    }
 
 @app.get("/user/saved-jobs")
 async def get_user_saved_jobs(

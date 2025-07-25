@@ -2696,21 +2696,17 @@
                         notes: notes
                     })
                 });
+                
                 const result = await response.json();
-                // If success, or already saved and job is in savedJobs, treat as success
-                if (result.success) {
+                console.log('Save job response:', response.status, result);
+                
+                // Check for success or duplicate job (which we treat as success)
+                if ((response.ok && result.success) || 
+                    (result.message && result.message.includes('already saved')) ||
+                    (result.detail && result.detail.includes('already saved'))) {
+                    console.log('Job saved successfully');
                     await loadSavedJobs();
                     updateSavedCount();
-                    return true;
-                } else if (
-                    result.message &&
-                    result.message.includes('already saved') &&
-                    savedJobs.some(j =>
-                        (j.job_data.job_url && j.job_data.job_url === jobData.job_url) ||
-                        (j.job_data.title === jobData.title && j.job_data.company === jobData.company)
-                    )
-                ) {
-                    // Already saved and present in savedJobs
                     return true;
                 } else {
                     console.error('Save job failed:', result);
@@ -3091,12 +3087,15 @@
             if (!currentUser) return;
 
             try {
-                const response = await fetch(`${API_BASE_URL}/user/saved-job/${jobId}/not-interested?not_interested=${notInterested}`, {
+                const response = await fetch(`${API_BASE_URL}/user/saved-job/${jobId}`, {
                     method: 'PUT',
                     headers: {
                         'Content-Type': 'application/json',
                         ...getAuthHeaders()
-                    }
+                    },
+                    body: JSON.stringify({
+                        not_interested: notInterested
+                    })
                 });
                 const result = await response.json();
                 if (result.success) {
