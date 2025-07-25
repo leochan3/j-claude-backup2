@@ -2938,14 +2938,15 @@
             if (!currentUser) return;
 
             try {
-                // Ensure boolean is sent as true/false, not string
-                const boolValue = applied ? 'true' : 'false';
-                const response = await fetch(`${API_BASE_URL}/user/saved-job/${jobId}/applied?applied=${boolValue}`, {
+                const response = await fetch(`${API_BASE_URL}/user/saved-job/${jobId}`, {
                     method: 'PUT',
                     headers: {
                         'Content-Type': 'application/json',
                         ...getAuthHeaders()
-                    }
+                    },
+                    body: JSON.stringify({
+                        applied: applied
+                    })
                 });
 
                 const result = await response.json();
@@ -3044,12 +3045,15 @@
             if (!currentUser) return;
 
             try {
-                const response = await fetch(`${API_BASE_URL}/user/saved-job/${jobId}/save-for-later?save_for_later=${saveForLater}`, {
+                const response = await fetch(`${API_BASE_URL}/user/saved-job/${jobId}`, {
                     method: 'PUT',
                     headers: {
                         'Content-Type': 'application/json',
                         ...getAuthHeaders()
-                    }
+                    },
+                    body: JSON.stringify({
+                        save_for_later: saveForLater
+                    })
                 });
                 const result = await response.json();
                 if (result.success) {
