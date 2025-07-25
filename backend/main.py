@@ -60,7 +60,7 @@ class JobSearchRequest(BaseModel):
     site_name: Optional[List[str]] = ["indeed"]  # Default to Indeed only
     search_term: str  # Job title/role only
     company_filter: Optional[str] = None  # Company to filter for (None = no filter)
-    location: Optional[str] = "USA"  # Match your Jupyter example
+    location: Optional[str] = "USA"  # Comma-separated locations supported, e.g. "New York, Boston, Los Angeles"
     distance: Optional[int] = 50
     job_type: Optional[str] = None  # fulltime, parttime, internship, contract
     is_remote: Optional[bool] = None
@@ -334,20 +334,20 @@ async def search_single_company(search_term: str, company: str, search_params: d
 
 @app.post("/search-jobs", response_model=JobSearchResponse)
 async def search_jobs(request: JobSearchRequest):
-    """Search for jobs using JobSpy with multi-company and multi-title support, with optional max years of experience filter."""
+    """Search for jobs using JobSpy with multi-company, multi-title, and multi-location support, with optional max years of experience filter."""
     try:
         # Parse multiple job titles (comma-separated)
         job_titles = [t.strip() for t in request.search_term.split(',') if t.strip()]
-        
         # Parse multiple companies (comma-separated)
         companies = []
         if request.company_filter and request.company_filter.strip():
             companies = [company.strip() for company in request.company_filter.split(',') if company.strip()]
-        
-        # Prepare base parameters for JobSpy
+        # Parse multiple locations (comma-separated)
+        locations = [loc.strip() for loc in request.location.split(',') if loc.strip()] if request.location else ["USA"]
+        # Prepare base parameters for JobSpy (except location)
         base_search_params = {
             "site_name": request.site_name,
-            "location": request.location,
+            # location will be set per-iteration
             "distance": request.distance,
             "job_type": request.job_type,
             "is_remote": request.is_remote,
@@ -361,35 +361,42 @@ async def search_jobs(request: JobSearchRequest):
         }
         base_search_params = {k: v for k, v in base_search_params.items() if v is not None}
         all_jobs_df = pd.DataFrame()
-
+        # Nested loops for all combinations
         if companies:
             print(f"Multi-company search for {len(companies)} companies: {companies}")
             for job_title in job_titles:
                 for company in companies:
-                    company_jobs_df = await search_single_company(job_title, company, base_search_params)
-                    if not company_jobs_df.empty:
-                        company_jobs_df = company_jobs_df.copy()
-                        company_jobs_df['search_company'] = company
-                        company_jobs_df['search_title'] = job_title
-                        if all_jobs_df.empty:
-                            all_jobs_df = company_jobs_df
-                        else:
-                            all_jobs_df = pd.concat([all_jobs_df, company_jobs_df], ignore_index=True)
+                    for location in locations:
+                        company_search_params = base_search_params.copy()
+                        company_search_params["location"] = location
+                        company_jobs_df = await search_single_company(job_title, company, company_search_params)
+                        if not company_jobs_df.empty:
+                            company_jobs_df = company_jobs_df.copy()
+                            company_jobs_df['search_company'] = company
+                            company_jobs_df['search_title'] = job_title
+                            company_jobs_df['search_location'] = location
+                            if all_jobs_df.empty:
+                                all_jobs_df = company_jobs_df
+                            else:
+                                all_jobs_df = pd.concat([all_jobs_df, company_jobs_df], ignore_index=True)
         else:
             print("No company filter - searching all companies")
             for job_title in job_titles:
-                search_params = base_search_params.copy()
-                search_params["search_term"] = job_title
-                print(f"JobSpy Parameters: {search_params}")
-                jobs_df = scrape_jobs(**search_params)
-                if jobs_df is not None and not jobs_df.empty:
-                    jobs_df = jobs_df.copy()
-                    jobs_df['search_title'] = job_title
-                    if all_jobs_df.empty:
-                        all_jobs_df = jobs_df
-                    else:
-                        all_jobs_df = pd.concat([all_jobs_df, jobs_df], ignore_index=True)
-        # Remove duplicates based on job_url or title+company combination
+                for location in locations:
+                    search_params = base_search_params.copy()
+                    search_params["search_term"] = job_title
+                    search_params["location"] = location
+                    print(f"JobSpy Parameters: {search_params}")
+                    jobs_df = scrape_jobs(**search_params)
+                    if jobs_df is not None and not jobs_df.empty:
+                        jobs_df = jobs_df.copy()
+                        jobs_df['search_title'] = job_title
+                        jobs_df['search_location'] = location
+                        if all_jobs_df.empty:
+                            all_jobs_df = jobs_df
+                        else:
+                            all_jobs_df = pd.concat([all_jobs_df, jobs_df], ignore_index=True)
+        # Remove duplicates based on job_url or title+company+location combination
         if not all_jobs_df.empty:
             print(f"Total jobs found across all searches: {len(all_jobs_df)}")
             original_count = len(all_jobs_df)
@@ -421,6 +428,8 @@ async def search_jobs(request: JobSearchRequest):
                     filter_info = f" (companies: {', '.join(companies)})"
             if len(job_titles) > 1:
                 filter_info += f" (titles: {', '.join(job_titles)})"
+            if len(locations) > 1:
+                filter_info += f" (locations: {', '.join(locations)})"
             if request.max_years_experience is not None:
                 filter_info += f" (max YOE: {request.max_years_experience})"
             return JobSearchResponse(
@@ -428,7 +437,7 @@ async def search_jobs(request: JobSearchRequest):
                 message=f"Successfully found {len(jobs_list)} jobs{filter_info}",
                 job_count=len(jobs_list),
                 jobs=jobs_list,
-                search_params={**base_search_params, "company_filter": request.company_filter, "search_term": request.search_term, "max_years_experience": request.max_years_experience},
+                search_params={**base_search_params, "company_filter": request.company_filter, "search_term": request.search_term, "location": request.location, "max_years_experience": request.max_years_experience},
                 timestamp=datetime.now().isoformat()
             )
         else:
@@ -440,12 +449,14 @@ async def search_jobs(request: JobSearchRequest):
                     filter_info = f" for companies: {', '.join(companies)}"
             if len(job_titles) > 1:
                 filter_info += f" for titles: {', '.join(job_titles)}"
+            if len(locations) > 1:
+                filter_info += f" for locations: {', '.join(locations)}"
             return JobSearchResponse(
                 success=True,
                 message=f"No jobs found matching your criteria{filter_info}",
                 job_count=0,
                 jobs=[],
-                search_params={**base_search_params, "company_filter": request.company_filter, "search_term": request.search_term},
+                search_params={**base_search_params, "company_filter": request.company_filter, "search_term": request.search_term, "location": request.location},
                 timestamp=datetime.now().isoformat()
             )
     except Exception as e:
