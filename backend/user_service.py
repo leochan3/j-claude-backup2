@@ -112,16 +112,19 @@ class UserService:
         existing_jobs = db.query(UserSavedJob).filter(UserSavedJob.user_id == user_id).all()
         
         for existing_job in existing_jobs:
-            # Check by job_url first (most reliable)
-            if job_url and existing_job.job_data.get('job_url') == job_url:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Job already saved"
-                )
-            # Check by title + company combination
-            if (job_title and job_company and 
-                existing_job.job_data.get('title') == job_title and 
-                existing_job.job_data.get('company') == job_company):
+            existing_job_url = existing_job.job_data.get('job_url')
+            
+            # If both jobs have URLs, only check by URL (most reliable)
+            if job_url and existing_job_url:
+                if existing_job_url == job_url:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Job already saved"
+                    )
+            # Only check by title + company if at least one job lacks a URL
+            elif (job_title and job_company and 
+                  existing_job.job_data.get('title') == job_title and 
+                  existing_job.job_data.get('company') == job_company):
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Job already saved"
