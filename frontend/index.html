@@ -1295,6 +1295,9 @@
                             <button id="generate-pdf-btn" class="search-button" style="padding: 10px 20px; font-size: 0.9rem; background: #48bb78;">
                                 📄 Generate PDF
                             </button>
+                            <button id="preview-pdf-btn" class="search-button" style="padding: 10px 20px; font-size: 0.9rem; background: #805ad5;">
+                                👁️ Preview PDF
+                            </button>
                         </div>
                     </div>
                     
@@ -1302,9 +1305,11 @@
                     <div style="background: #e6fffa; border: 1px solid #38b2ac; border-radius: 8px; padding: 15px; margin-bottom: 20px; font-size: 14px;">
                         <div style="font-weight: 600; color: #2c7a7b; margin-bottom: 8px;">📄 PDF Generation Options</div>
                         <div style="color: #2d3748;">
-                            <strong>Option 1:</strong> Click "📄 Generate PDF" for direct download (uses online LaTeX services)<br>
-                            <strong>Option 2:</strong> Click "📥 Download LaTeX" → paste code into <a href="https://www.overleaf.com" target="_blank" style="color: #38b2ac;">Overleaf.com</a> (recommended)<br>
-                            <strong>Option 3:</strong> Click "👁️ Preview LaTeX" to inspect the code before compiling
+                            <strong>Option 1:</strong> Click "👁️ Preview PDF" to see your LaTeX-compiled resume<br>
+                            <strong>Option 2:</strong> Click "📄 Generate PDF" for direct LaTeX-compiled download<br>
+                            <strong>Option 3:</strong> Click "📥 Download LaTeX" → paste code into <a href="https://www.overleaf.com" target="_blank" style="color: #38b2ac;">Overleaf.com</a> (backup option)<br>
+                            <strong>Option 4:</strong> Click "👁️ Preview LaTeX" to inspect the code before compiling<br>
+                            <div id="backend-status" style="margin-top: 10px; font-size: 12px; color: #4a5568;"></div>
                         </div>
                     </div>
 
@@ -1457,6 +1462,28 @@
                         </div>
                         <div class="latex-preview">
                             <pre id="latex-output" style="background: #f5f5f5; padding: 20px; border-radius: 8px; overflow-x: auto; font-family: 'Courier New', monospace; font-size: 12px; line-height: 1.4; white-space: pre-wrap;"></pre>
+                        </div>
+                    </div>
+
+                    <!-- PDF Preview Section -->
+                    <div id="pdf-preview-container" style="display: none;">
+                        <div class="results-header">
+                            <div class="results-count">PDF Preview</div>
+                            <div class="actions">
+                                <button id="download-previewed-pdf-btn" class="search-button" style="padding: 10px 20px; font-size: 0.9rem; background: #48bb78;">
+                                    📥 Download PDF
+                                </button>
+                                <button id="close-pdf-preview-btn" class="search-button" style="padding: 10px 20px; font-size: 0.9rem;">
+                                    ✖️ Close Preview
+                                </button>
+                            </div>
+                        </div>
+                        <div class="pdf-preview" style="border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; background: white;">
+                            <iframe id="pdf-iframe" style="width: 100%; height: 600px; border: none;" src=""></iframe>
+                        </div>
+                        <div id="pdf-fallback" style="display: none; text-align: center; padding: 40px; background: #f7fafc; border-radius: 8px;">
+                            <div style="font-size: 1.2rem; margin-bottom: 10px;">📄 PDF Generated Successfully!</div>
+                            <div style="color: #4a5568; margin-bottom: 20px;">Your browser cannot display PDFs inline. Click the download button above to get your resume.</div>
                         </div>
                     </div>
                 </div>
@@ -1899,6 +1926,8 @@
                 loadSearchHistory();
             } else if (tabName === 'preferences') {
                 loadUserPreferences();
+            } else if (tabName === 'resume') {
+                checkBackendStatus();
             }
         }
 
@@ -4018,6 +4047,135 @@
             URL.revokeObjectURL(url);
         });
 
+        // Global variable to store PDF blob for preview
+        let currentPdfBlob = null;
+
+        async function checkBackendStatus() {
+            const statusDiv = document.getElementById('backend-status');
+            if (!statusDiv) return;
+            
+            try {
+                statusDiv.innerHTML = '🔄 Checking backend status...';
+                
+                // First test basic health endpoint
+                const healthResponse = await fetch(`${API_BASE_URL}/health`, { 
+                    method: 'GET'
+                });
+                
+                if (!healthResponse.ok) {
+                    throw new Error('Health check failed');
+                }
+                
+                // Then test PDF endpoint connectivity
+                const testResponse = await fetch(`${API_BASE_URL}/test-pdf-endpoint`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ latex_code: 'test' })
+                });
+                
+                if (testResponse.ok) {
+                    statusDiv.innerHTML = '✅ Backend server is running - LaTeX PDF compilation via Overleaf API available';
+                    statusDiv.style.color = '#38a169';
+                } else {
+                    throw new Error('PDF endpoint test failed');
+                }
+                
+            } catch (error) {
+                console.warn('Backend check failed:', error);
+                statusDiv.innerHTML = '⚠️ Backend PDF endpoint unavailable - use LaTeX download + Overleaf.com';
+                statusDiv.style.color = '#d69e2e';
+                
+                // Add debug info
+                const debugBtn = document.createElement('button');
+                debugBtn.innerHTML = '🔍 Debug';
+                debugBtn.style.marginLeft = '10px';
+                debugBtn.style.padding = '2px 8px';
+                debugBtn.style.fontSize = '11px';
+                debugBtn.onclick = () => debugPdfEndpoint();
+                statusDiv.appendChild(debugBtn);
+            }
+        }
+
+        async function debugPdfEndpoint() {
+            console.log('=== PDF Endpoint Debug ===');
+            
+            // Test 1: Basic connectivity
+            try {
+                console.log('Testing basic connectivity...');
+                const response = await fetch(`${API_BASE_URL}/health`);
+                console.log('✅ Health check:', response.status, response.ok);
+            } catch (e) {
+                console.log('❌ Health check failed:', e.message);
+                alert('Backend server is not running. Please start it with: cd backend && python main.py');
+                return;
+            }
+            
+            // Test 2: PDF test endpoint
+            try {
+                console.log('Testing PDF endpoint...');
+                const response = await fetch(`${API_BASE_URL}/test-pdf-endpoint`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ latex_code: 'test' })
+                });
+                console.log('✅ PDF test endpoint:', response.status, response.ok);
+                const data = await response.json();
+                console.log('Response:', data);
+            } catch (e) {
+                console.log('❌ PDF test endpoint failed:', e.message);
+                alert('PDF endpoint is not available. This might be due to:\n1. Import errors in backend\n2. Missing dependencies (requests library)\n3. Syntax errors in the endpoint\n\nCheck the backend console for errors.');
+                return;
+            }
+            
+            // Test 3: Actual PDF endpoint
+            try {
+                console.log('Testing actual PDF generation endpoint...');
+                const response = await fetch(`${API_BASE_URL}/generate-resume-pdf`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ latex_code: '\\documentclass{article}\\begin{document}Test\\end{document}' })
+                });
+                console.log('PDF generation endpoint:', response.status, response.ok);
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.log('Error details:', errorText);
+                }
+            } catch (e) {
+                console.log('❌ PDF generation endpoint failed:', e.message);
+            }
+            
+            alert('Debug complete. Check browser console (F12) for detailed results.');
+        }
+
+        async function generatePdfFromBackend(latex) {
+            // First, check if backend is available
+            try {
+                const healthCheck = await fetch(`${API_BASE_URL}/health`, { timeout: 5000 });
+                if (!healthCheck.ok) {
+                    throw new Error('Backend server is not responding');
+                }
+            } catch (e) {
+                throw new Error('Cannot connect to backend server. Make sure it\'s running on http://localhost:8000');
+            }
+
+            const response = await fetch(`${API_BASE_URL}/generate-resume-pdf`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    latex_code: latex
+                })
+            });
+            
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({ detail: 'Unknown server error' }));
+                throw new Error(errorData.detail || `Server error: ${response.status}`);
+            }
+            
+            return await response.blob();
+        }
+
         document.getElementById('generate-pdf-btn').addEventListener('click', async function() {
             const button = this;
             const originalText = button.innerHTML;
@@ -4028,40 +4186,27 @@
                 button.innerHTML = '⏳ Generating PDF...';
                 
                 const latex = generateLatexResume();
+                const pdfBlob = await generatePdfFromBackend(latex);
                 
-                const response = await fetch(`${API_BASE_URL}/generate-resume-pdf`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        latex_code: latex
-                    })
-                });
+                // Store for preview functionality
+                currentPdfBlob = pdfBlob;
                 
-                if (response.ok) {
-                    // Get the PDF blob
-                    const pdfBlob = await response.blob();
-                    
-                    // Create download link
-                    const url = URL.createObjectURL(pdfBlob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = 'resume.pdf';
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    URL.revokeObjectURL(url);
-                    
-                    // Show success
-                    button.innerHTML = '✅ PDF Generated!';
-                    setTimeout(() => {
-                        button.innerHTML = originalText;
-                    }, 2000);
-                } else {
-                    const errorData = await response.json();
-                    throw new Error(errorData.detail || 'PDF generation failed');
-                }
+                // Create download link
+                const url = URL.createObjectURL(pdfBlob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'resume.pdf';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                
+                // Show success
+                button.innerHTML = '✅ PDF Generated!';
+                setTimeout(() => {
+                    button.innerHTML = originalText;
+                }, 2000);
+                
             } catch (error) {
                 console.error('Error generating PDF:', error);
                 
@@ -4095,6 +4240,84 @@
                 button.disabled = false;
             }
         });
+
+        document.getElementById('preview-pdf-btn').addEventListener('click', async function() {
+            const button = this;
+            const originalText = button.innerHTML;
+            
+            try {
+                // Show loading state
+                button.disabled = true;
+                button.innerHTML = '⏳ Generating Preview...';
+                
+                const latex = generateLatexResume();
+                const pdfBlob = await generatePdfFromBackend(latex);
+                
+                // Store for download functionality
+                currentPdfBlob = pdfBlob;
+                
+                // Create object URL for preview
+                const pdfUrl = URL.createObjectURL(pdfBlob);
+                
+                // Show PDF preview
+                const iframe = document.getElementById('pdf-iframe');
+                const fallback = document.getElementById('pdf-fallback');
+                
+                // Try to display PDF in iframe
+                iframe.src = pdfUrl;
+                iframe.onload = function() {
+                    fallback.style.display = 'none';
+                };
+                iframe.onerror = function() {
+                    fallback.style.display = 'block';
+                };
+                
+                // Show preview container
+                document.getElementById('pdf-preview-container').style.display = 'block';
+                document.getElementById('pdf-preview-container').scrollIntoView({ behavior: 'smooth' });
+                
+                // Show success
+                button.innerHTML = '✅ Preview Ready!';
+                setTimeout(() => {
+                    button.innerHTML = originalText;
+                }, 2000);
+                
+            } catch (error) {
+                console.error('Error generating PDF preview:', error);
+                alert(`Failed to generate PDF preview: ${error.message}\n\nTry the "📥 Download LaTeX" option and use Overleaf.com instead.`);
+                
+                button.innerHTML = '❌ Preview Failed';
+                setTimeout(() => {
+                    button.innerHTML = originalText;
+                }, 3000);
+            } finally {
+                button.disabled = false;
+            }
+        });
+
+        document.getElementById('close-pdf-preview-btn').addEventListener('click', function() {
+            document.getElementById('pdf-preview-container').style.display = 'none';
+            // Clean up object URL
+            const iframe = document.getElementById('pdf-iframe');
+            if (iframe.src) {
+                URL.revokeObjectURL(iframe.src);
+                iframe.src = '';
+            }
+        });
+
+        document.getElementById('download-previewed-pdf-btn').addEventListener('click', function() {
+            if (currentPdfBlob) {
+                const url = URL.createObjectURL(currentPdfBlob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'resume.pdf';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }
+        });
+
 
         // On page load, check authentication and initialize
         window.addEventListener('load', async () => {

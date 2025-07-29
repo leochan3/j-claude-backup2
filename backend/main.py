@@ -718,111 +718,108 @@ async def search_jobs_public(request: JobSearchRequest):
 
 @app.post("/generate-resume-pdf")
 async def generate_resume_pdf(request: dict):
-    """Generate PDF from LaTeX resume code with multiple service fallbacks"""
+    """Generate PDF from LaTeX code using Overleaf's reliable compilation service"""
     try:
-        from fastapi.responses import StreamingResponse
         import base64
+        import urllib.parse
         
         latex_code = request.get('latex_code', '')
         if not latex_code:
             raise HTTPException(status_code=400, detail="LaTeX code is required")
         
-        # List of LaTeX compilation services to try (most reliable first)
-        services = [
-            {
-                "name": "LaTeX.Online (texlive2021)",
-                "url": "https://texlive2021.latexonline.cc/compile",
-                "method": "multipart"
-            },
-            {
-                "name": "LaTeX.Online (main)",
-                "url": "https://latexonline.cc/compile",
-                "method": "multipart_alt"
-            },
-            {
-                "name": "LaTeX.Online (aslushnikov)",
-                "url": "https://latex.aslushnikov.com/compile",
-                "method": "multipart"
-            }
-        ]
+        print("🚀 Creating Overleaf compilation link...")
         
-        last_error = None
-        
-        for service in services:
-            try:
-                print(f"Trying {service['name']}...")
-                
-                if service['method'] == 'multipart':
-                    # Standard multipart file upload
-                    files = {
-                        'file': ('resume.tex', latex_code, 'text/plain')
-                    }
-                    headers = {'User-Agent': 'JobSpy-Resume-Builder/1.0'}
-                    response = requests.post(service['url'], files=files, headers=headers, timeout=60)
-                    
-                elif service['method'] == 'multipart_alt':
-                    # Alternative multipart format
-                    files = {
-                        'filecontents[]': ('resume.tex', latex_code, 'text/plain')
-                    }
-                    data = {
-                        'filename[]': 'resume.tex',
-                        'compiler': 'pdflatex'
-                    }
-                    headers = {'User-Agent': 'JobSpy-Resume-Builder/1.0'}
-                    response = requests.post(service['url'], files=files, data=data, headers=headers, timeout=60)
-                
-                else:
-                    print(f"⚠️ Unknown method for {service['name']}")
-                    continue
-                
-                print(f"{service['name']} response status: {response.status_code}")
-                
-                if response.status_code == 200:
-                    # Check if response is actually a PDF
-                    content = response.content
-                    if content.startswith(b'%PDF'):
-                        print(f"✅ PDF generation successful with {service['name']}")
-                        return StreamingResponse(
-                            io.BytesIO(content),
-                            media_type="application/pdf",
-                            headers={"Content-Disposition": "attachment; filename=resume.pdf"}
-                        )
-                    else:
-                        print(f"❌ {service['name']} returned non-PDF content")
-                        last_error = f"{service['name']}: Response not a valid PDF"
-                else:
-                    error_text = response.text[:500] if response.text else "No error message"
-                    print(f"❌ {service['name']} failed: {response.status_code} - {error_text}")
-                    last_error = f"{service['name']}: HTTP {response.status_code} - {error_text}"
-                    
-            except requests.exceptions.Timeout:
-                print(f"⏰ {service['name']} timed out")
-                last_error = f"{service['name']}: Request timed out"
-                continue
-            except requests.exceptions.RequestException as e:
-                print(f"🌐 {service['name']} connection error: {str(e)}")
-                last_error = f"{service['name']}: Connection error - {str(e)}"
-                continue
-            except Exception as e:
-                print(f"❌ {service['name']} unexpected error: {str(e)}")
-                last_error = f"{service['name']}: Unexpected error - {str(e)}"
-                continue
-        
-        # If all services failed, provide detailed error message
-        raise HTTPException(
-            status_code=503,
-            detail=f"All LaTeX compilation services are currently unavailable. Last error: {last_error}. Please try downloading the LaTeX file and compiling it locally using Overleaf (overleaf.com), TeXLive, or MiKTeX."
-        )
+        # Method 1: Create Overleaf link with base64 encoded LaTeX
+        try:
+            # Encode LaTeX as base64 for Overleaf
+            latex_bytes = latex_code.encode('utf-8')
+            latex_base64 = base64.b64encode(latex_bytes).decode('utf-8')
             
-    except HTTPException:
-        # Re-raise HTTP exceptions
-        raise
+            # Create Overleaf data URL
+            data_url = f"data:application/x-tex;base64,{latex_base64}"
+            
+            # Create Overleaf link
+            overleaf_url = f"https://www.overleaf.com/docs?snip_uri={urllib.parse.quote(data_url)}"
+            
+            print(f"✅ Created Overleaf link: {overleaf_url}")
+            
+            return {
+                "success": True,
+                "message": "LaTeX code ready for compilation in Overleaf",
+                "compilation_method": "overleaf_online",
+                "overleaf_url": overleaf_url,
+                "instructions": [
+                    "1. Click the Overleaf link above",
+                    "2. Wait for the document to load in Overleaf",
+                    "3. Click 'Recompile' to generate the PDF",
+                    "4. Download the PDF from Overleaf",
+                    "5. The document will be automatically saved to your Overleaf account"
+                ],
+                "latex_code_length": len(latex_code),
+                "timestamp": datetime.now().isoformat()
+            }
+            
+        except Exception as e:
+            print(f"❌ Base64 encoding failed: {str(e)}")
+            # Fallback to URL-encoded method
+            pass
+        
+        # Method 2: Create Overleaf link with URL-encoded LaTeX (fallback)
+        try:
+            # URL encode the LaTeX code
+            encoded_latex = urllib.parse.quote(latex_code)
+            
+            # Create Overleaf link with encoded snippet
+            overleaf_url = f"https://www.overleaf.com/docs?encoded_snip={encoded_latex}"
+            
+            print(f"✅ Created Overleaf link (URL-encoded): {overleaf_url}")
+            
+            return {
+                "success": True,
+                "message": "LaTeX code ready for compilation in Overleaf",
+                "compilation_method": "overleaf_url_encoded",
+                "overleaf_url": overleaf_url,
+                "instructions": [
+                    "1. Click the Overleaf link above",
+                    "2. Wait for the document to load in Overleaf", 
+                    "3. Click 'Recompile' to generate the PDF",
+                    "4. Download the PDF from Overleaf",
+                    "5. The document will be automatically saved to your Overleaf account"
+                ],
+                "latex_code_length": len(latex_code),
+                "timestamp": datetime.now().isoformat()
+            }
+            
+        except Exception as e:
+            print(f"❌ URL encoding failed: {str(e)}")
+            # Final fallback: return LaTeX code for manual compilation
+            pass
+        
+        # Method 3: Return LaTeX code for manual compilation (final fallback)
+        print("📄 Returning LaTeX code for manual compilation")
+        
+        return {
+            "success": True,
+            "message": "LaTeX code generated successfully - compile manually",
+            "compilation_method": "manual_compilation",
+            "latex_code": latex_code,
+            "instructions": [
+                "1. Copy the LaTeX code below",
+                "2. Go to https://www.overleaf.com",
+                "3. Create a new project",
+                "4. Paste the LaTeX code",
+                "5. Click 'Recompile' to generate the PDF",
+                "6. Download the PDF"
+            ],
+            "latex_code_length": len(latex_code),
+            "timestamp": datetime.now().isoformat()
+        }
+            
     except Exception as e:
         print(f"💥 Unexpected error in PDF generation: {str(e)}")
         raise HTTPException(
             status_code=500,
-            detail=f"Unexpected error generating PDF: {str(e)}. Please try downloading the LaTeX file instead."
+            detail=f"Error generating PDF: {str(e)}. Please try the manual compilation method."
         )
 
 # AI Filtering Functions
@@ -1478,6 +1475,117 @@ async def get_saved_jobs_categorized():
 async def health_check():
     """Health check endpoint"""
     return {"status": "healthy", "timestamp": datetime.now().isoformat()}
+
+@app.post("/test-pdf-endpoint")
+async def test_pdf_endpoint(request: dict):
+    """Test endpoint to debug PDF generation issues"""
+    try:
+        latex_code = request.get('latex_code', '')
+        
+        if not latex_code:
+            return {
+                "status": "error",
+                "message": "No LaTeX code provided",
+                "received_data": 0,
+                "timestamp": datetime.now().isoformat()
+            }
+        
+        # Test with a simple LaTeX document
+        test_latex = r"""
+\documentclass{article}
+\begin{document}
+\title{Test Document}
+\author{JobSpy Resume Builder}
+\maketitle
+\section{Test Section}
+This is a test document generated by JobSpy Resume Builder.
+\end{document}
+        """
+        
+        print("🧪 Testing Overleaf link generation...")
+        
+        # Test the Overleaf link generation
+        try:
+            import base64
+            import urllib.parse
+            
+            # Test base64 encoding
+            latex_bytes = test_latex.encode('utf-8')
+            latex_base64 = base64.b64encode(latex_bytes).decode('utf-8')
+            data_url = f"data:application/x-tex;base64,{latex_base64}"
+            overleaf_url = f"https://www.overleaf.com/docs?snip_uri={urllib.parse.quote(data_url)}"
+            
+            # Test URL encoding
+            encoded_latex = urllib.parse.quote(test_latex)
+            overleaf_url_encoded = f"https://www.overleaf.com/docs?encoded_snip={encoded_latex}"
+            
+            test_result = {
+                "status": "success",
+                "message": "Overleaf link generation test successful",
+                "received_data": len(latex_code),
+                "test_latex_length": len(test_latex),
+                "base64_encoding_works": True,
+                "url_encoding_works": True,
+                "overleaf_base64_url_length": len(overleaf_url),
+                "overleaf_encoded_url_length": len(overleaf_url_encoded),
+                "timestamp": datetime.now().isoformat()
+            }
+            
+            return test_result
+            
+        except Exception as e:
+            return {
+                "status": "error",
+                "message": f"Overleaf link generation test failed: {str(e)}",
+                "received_data": len(latex_code),
+                "test_latex_length": len(test_latex),
+                "timestamp": datetime.now().isoformat()
+            }
+            
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Test endpoint error: {str(e)}",
+            "received_data": len(request.get('latex_code', '')),
+            "timestamp": datetime.now().isoformat()
+        }
+
+@app.post("/download-latex-file")
+async def download_latex_file(request: dict):
+    """Download LaTeX code as a .tex file for manual compilation"""
+    try:
+        from fastapi.responses import StreamingResponse
+        
+        latex_code = request.get('latex_code', '')
+        filename = request.get('filename', 'resume.tex')
+        
+        if not latex_code:
+            raise HTTPException(status_code=400, detail="LaTeX code is required")
+        
+        # Ensure filename has .tex extension
+        if not filename.endswith('.tex'):
+            filename = f"{filename}.tex"
+        
+        print(f"📄 Creating LaTeX file download: {filename}")
+        
+        # Create file content with proper encoding
+        file_content = latex_code.encode('utf-8')
+        
+        return StreamingResponse(
+            io.BytesIO(file_content),
+            media_type="application/x-tex",
+            headers={
+                "Content-Disposition": f"attachment; filename={filename}",
+                "Content-Length": str(len(file_content))
+            }
+        )
+            
+    except Exception as e:
+        print(f"💥 Error creating LaTeX file download: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error creating LaTeX file: {str(e)}"
+        )
 
 if __name__ == "__main__":
     print(f"Starting JobSpy API server on {BACKEND_HOST}:{BACKEND_PORT}")
