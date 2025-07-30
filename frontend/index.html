@@ -2769,15 +2769,15 @@
                         <div style="display: flex; align-items: center; gap: 15px; flex-wrap: wrap;">
                             <span style="font-weight: 600; color: #4a5568;">💾 Bulk Save Jobs:</span>
                             <div style="display: flex; align-items: center; gap: 10px;">
-                                <label for="save-threshold" style="font-size: 0.9rem; color: #666;">Save top</label>
-                                <input type="number" id="save-threshold" min="1" max="${jobsToDisplay.length}" value="5" style="width: 60px; padding: 5px; border: 1px solid #ddd; border-radius: 4px;">
-                                <label for="save-threshold" style="font-size: 0.9rem; color: #666;">jobs</label>
+                                <label for="score-threshold" style="font-size: 0.9rem; color: #666;">Save jobs with score ≥</label>
+                                <input type="number" id="score-threshold" min="1" max="200" value="60" style="width: 70px; padding: 5px; border: 1px solid #ddd; border-radius: 4px;" oninput="updateJobCount()">
+                                <span id="job-count-preview" style="font-size: 0.9rem; color: #666; min-width: 80px;"></span>
                                 <button id="bulk-save-btn" class="search-button" style="padding: 8px 16px; font-size: 0.9rem; background: #667eea;">
-                                    💾 Save Selected
+                                    💾 Save by Score
                                 </button>
                             </div>
                             <div style="font-size: 0.85rem; color: #666; flex: 1;">
-                                💡 Jobs are ranked by search relevance - enter how many top results to save
+                                💡 Enter minimum score (60+ = Good Match, 80+ = Strong Match)
                             </div>
                         </div>
                     </div>
@@ -2862,11 +2862,16 @@
                 const bulkSaveBtn = document.getElementById('bulk-save-btn');
                 if (bulkSaveBtn) {
                     bulkSaveBtn.addEventListener('click', async () => {
-                        const threshold = parseInt(document.getElementById('save-threshold').value);
-                        if (threshold && threshold > 0 && threshold <= jobsToDisplay.length) {
-                            await bulkSaveJobs(jobsToDisplay.slice(0, threshold));
+                        const scoreThreshold = parseInt(document.getElementById('score-threshold').value);
+                        if (scoreThreshold && scoreThreshold > 0) {
+                            const jobsToSave = jobsToDisplay.filter(job => job.relevanceScore && job.relevanceScore >= scoreThreshold);
+                            if (jobsToSave.length > 0) {
+                                await bulkSaveJobsByScore(jobsToSave, scoreThreshold);
+                            } else {
+                                alert(`No jobs found with score >= ${scoreThreshold}. Try a lower threshold.`);
+                            }
                         } else {
-                            alert('Please enter a valid number between 1 and ' + jobsToDisplay.length);
+                            alert('Please enter a valid score threshold (e.g., 60, 80)');
                         }
                     });
                 }
@@ -3200,7 +3205,7 @@
             }
         }
         
-        async function bulkSaveJobs(jobs) {
+        async function bulkSaveJobsByScore(jobs, scoreThreshold) {
             if (!currentUser) {
                 alert('You need to be logged in to save jobs.');
                 return;
@@ -3223,7 +3228,7 @@
             try {
                 for (let i = 0; i < jobs.length; i++) {
                     const job = jobs[i];
-                    bulkSaveBtn.textContent = `⏳ Saving job ${i + 1}/${jobs.length}...`;
+                    bulkSaveBtn.textContent = `⏳ Saving job ${i + 1}/${jobs.length}... (Score: ${job.relevanceScore})`;
                     
                     // Check if job is already saved
                     if (isJobSaved(job)) {
@@ -3231,7 +3236,7 @@
                         continue;
                     }
                     
-                    const success = await saveJob(job, `Bulk saved: Top ${jobs.length} results (rank #${i + 1})`);
+                    const success = await saveJob(job, `Bulk saved: Score ${job.relevanceScore} (threshold: ${scoreThreshold})`);
                     if (success) {
                         successCount++;
                     } else {
@@ -3249,6 +3254,7 @@
                 if (successCount > 0) messages.push(`✅ ${successCount} jobs saved`);
                 if (skipCount > 0) messages.push(`⏭️ ${skipCount} already saved`);
                 if (errorCount > 0) messages.push(`❌ ${errorCount} failed`);
+                messages.push(`🎯 Score threshold: ${scoreThreshold}`);
                 
                 alert(messages.join('\n'));
                 
@@ -3264,6 +3270,30 @@
             } finally {
                 bulkSaveBtn.disabled = false;
                 bulkSaveBtn.textContent = originalText;
+            }
+        }
+
+        function updateJobCount() {
+            const scoreThreshold = parseInt(document.getElementById('score-threshold').value);
+            const jobCountPreview = document.getElementById('job-count-preview');
+            
+            if (!scoreThreshold || scoreThreshold <= 0 || !jobsToDisplay) {
+                jobCountPreview.textContent = '';
+                return;
+            }
+            
+            const matchingJobs = jobsToDisplay.filter(job => job.relevanceScore && job.relevanceScore >= scoreThreshold);
+            const count = matchingJobs.length;
+            
+            if (count === 0) {
+                jobCountPreview.textContent = '(0 jobs)';
+                jobCountPreview.style.color = '#e53e3e';
+            } else if (count === 1) {
+                jobCountPreview.textContent = '(1 job)';
+                jobCountPreview.style.color = '#38a169';
+            } else {
+                jobCountPreview.textContent = `(${count} jobs)`;
+                jobCountPreview.style.color = '#38a169';
             }
         }
 

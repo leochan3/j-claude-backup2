@@ -5,7 +5,8 @@
       "Bash(python:*)",
       "Bash(sqlite3:*)",
       "Bash(curl:*)",
-      "Bash(lsof:*)"
+      "Bash(lsof:*)",
+      "Bash(open:*)"
     ],
     "deny": []
   }
