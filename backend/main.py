@@ -18,16 +18,16 @@ import asyncio
 from openai import OpenAI
 import uuid
 from sqlalchemy.orm import Session
-from backend.database import create_tables, get_db, User
-from backend.models import (
+from database import create_tables, get_db, User
+from models import (
     UserCreate, UserLogin, UserResponse, Token,
     UserPreferencesCreate, UserPreferencesUpdate, UserPreferencesResponse,
     SaveJobRequest as NewSaveJobRequest, SavedJobUpdate, SavedJobResponse as NewSavedJobResponse,
     SearchHistoryResponse, SavedSearchCreate, SavedSearchUpdate, SavedSearchResponse,
     AuthenticatedJobSearchRequest
 )
-from backend.auth import authenticate_user, create_access_token, get_current_active_user, ACCESS_TOKEN_EXPIRE_MINUTES
-from backend.user_service import UserService
+from auth import authenticate_user, create_access_token, get_current_active_user, ACCESS_TOKEN_EXPIRE_MINUTES
+from user_service import UserService
 import time
 
 # Load environment variables
@@ -72,8 +72,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Mount static files (frontend)
-app.mount("/static", StaticFiles(directory="frontend"), name="static")
+# Mount static files (frontend) - this should come AFTER all API routes are defined
+# We'll move this to the end of the file
 
 # Saved Jobs Storage Management
 SAVED_JOBS_FILE = "saved_jobs.json"
@@ -1655,6 +1655,16 @@ async def download_latex_file(request: dict):
             status_code=500,
             detail=f"Error creating LaTeX file: {str(e)}"
         )
+
+# Catch-all route for serving static frontend files (must be last)
+@app.get("/{catchall:path}")
+async def serve_frontend_static(catchall: str):
+    # Serve static files from frontend directory 
+    file_path = f"frontend/{catchall}"
+    if os.path.exists(file_path) and os.path.isfile(file_path):
+        return FileResponse(file_path)
+    # For any non-existent routes, serve index.html (SPA behavior)
+    return FileResponse("frontend/index.html")
 
 if __name__ == "__main__":
     print(f"Starting JobSpy API server on {BACKEND_HOST}:{BACKEND_PORT}")

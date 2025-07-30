@@ -8,7 +8,8 @@
       "Bash(lsof:*)",
       "Bash(open:*)",
       "Bash(git add:*)",
-      "Bash(rm:*)"
+      "Bash(rm:*)",
+      "Bash(wc:*)"
     ],
     "deny": []
   }
