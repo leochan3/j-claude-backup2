@@ -580,6 +580,7 @@ async def search_jobs(
             # Filter by excluded keywords if set
             if effective_request.exclude_keywords:
                 jobs_list = filter_jobs_by_excluded_keywords(jobs_list, effective_request.exclude_keywords)
+            
             filter_info = ""
             if companies:
                 if len(companies) == 1:

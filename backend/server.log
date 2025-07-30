@@ -1,1 +1,2 @@
-python: can't open file '/Users/LeoChan/Documents/j-claude-backup2/backend/backend/main.py': [Errno 2] No such file or directory
+2025-07-30 00:53:29,983 - INFO - JobSpy:Indeed - search page: 1 / 1
+2025-07-30 00:53:31,444 - INFO - JobSpy:Indeed - finished scraping

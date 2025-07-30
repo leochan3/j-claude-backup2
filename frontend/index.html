@@ -1111,6 +1111,7 @@
                         </small>
                     </div>
 
+
                     <div class="form-group">
                         <label for="location">Location</label>
                         <input type="text" id="location" name="location" value="USA">
@@ -2763,6 +2764,24 @@
                             ${searchTerm ? '<br>🎯 Jobs ranked by relevance to your search term' : ''}
                         </div>
                     </div>
+                    ${currentUser ? `
+                    <div class="bulk-save-section" style="background: #f8f9ff; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 2px solid #e0e6ed;">
+                        <div style="display: flex; align-items: center; gap: 15px; flex-wrap: wrap;">
+                            <span style="font-weight: 600; color: #4a5568;">💾 Bulk Save Jobs:</span>
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <label for="save-threshold" style="font-size: 0.9rem; color: #666;">Save top</label>
+                                <input type="number" id="save-threshold" min="1" max="${jobsToDisplay.length}" value="5" style="width: 60px; padding: 5px; border: 1px solid #ddd; border-radius: 4px;">
+                                <label for="save-threshold" style="font-size: 0.9rem; color: #666;">jobs</label>
+                                <button id="bulk-save-btn" class="search-button" style="padding: 8px 16px; font-size: 0.9rem; background: #667eea;">
+                                    💾 Save Selected
+                                </button>
+                            </div>
+                            <div style="font-size: 0.85rem; color: #666; flex: 1;">
+                                💡 Jobs are ranked by search relevance - enter how many top results to save
+                            </div>
+                        </div>
+                    </div>
+                    ` : ''}
                     ${authNotice}
                     ${searchSummary}
             `;
@@ -2837,6 +2856,21 @@
             
             html += '</div>';
             container.innerHTML = html;
+            
+            // Add bulk save event handler if user is logged in
+            if (currentUser && jobsToDisplay.length > 0) {
+                const bulkSaveBtn = document.getElementById('bulk-save-btn');
+                if (bulkSaveBtn) {
+                    bulkSaveBtn.addEventListener('click', async () => {
+                        const threshold = parseInt(document.getElementById('save-threshold').value);
+                        if (threshold && threshold > 0 && threshold <= jobsToDisplay.length) {
+                            await bulkSaveJobs(jobsToDisplay.slice(0, threshold));
+                        } else {
+                            alert('Please enter a valid number between 1 and ' + jobsToDisplay.length);
+                        }
+                    });
+                }
+            }
             
             // Show AI filtering panel if jobs found
             if (jobsToDisplay.length > 0) {
@@ -3163,6 +3197,73 @@
                 console.error('Error saving job:', error);
                 alert('Network error: Failed to save job. Please check if backend is running.');
                 return false;
+            }
+        }
+        
+        async function bulkSaveJobs(jobs) {
+            if (!currentUser) {
+                alert('You need to be logged in to save jobs.');
+                return;
+            }
+            
+            if (!jobs || jobs.length === 0) {
+                alert('No jobs to save.');
+                return;
+            }
+            
+            const bulkSaveBtn = document.getElementById('bulk-save-btn');
+            const originalText = bulkSaveBtn.textContent;
+            bulkSaveBtn.disabled = true;
+            bulkSaveBtn.textContent = `⏳ Saving ${jobs.length} jobs...`;
+            
+            let successCount = 0;
+            let skipCount = 0;
+            let errorCount = 0;
+            
+            try {
+                for (let i = 0; i < jobs.length; i++) {
+                    const job = jobs[i];
+                    bulkSaveBtn.textContent = `⏳ Saving job ${i + 1}/${jobs.length}...`;
+                    
+                    // Check if job is already saved
+                    if (isJobSaved(job)) {
+                        skipCount++;
+                        continue;
+                    }
+                    
+                    const success = await saveJob(job, `Bulk saved: Top ${jobs.length} results (rank #${i + 1})`);
+                    if (success) {
+                        successCount++;
+                    } else {
+                        errorCount++;
+                    }
+                    
+                    // Small delay to avoid overwhelming the server
+                    if (i < jobs.length - 1) {
+                        await new Promise(resolve => setTimeout(resolve, 100));
+                    }
+                }
+                
+                // Show results
+                const messages = [];
+                if (successCount > 0) messages.push(`✅ ${successCount} jobs saved`);
+                if (skipCount > 0) messages.push(`⏭️ ${skipCount} already saved`);
+                if (errorCount > 0) messages.push(`❌ ${errorCount} failed`);
+                
+                alert(messages.join('\n'));
+                
+                // Reload saved jobs to update the UI
+                if (successCount > 0) {
+                    await loadSavedJobs();
+                    updateSaveButtonStates();
+                }
+                
+            } catch (error) {
+                console.error('Error in bulk save:', error);
+                alert('An error occurred during bulk save. Please try again.');
+            } finally {
+                bulkSaveBtn.disabled = false;
+                bulkSaveBtn.textContent = originalText;
             }
         }
 
