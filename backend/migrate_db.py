@@ -31,6 +31,9 @@ def migrate_database():
             
         if 'default_company_filter' not in columns:
             columns_to_add.append(('default_company_filter', 'TEXT'))
+            
+        if 'default_exclude_keywords' not in columns:
+            columns_to_add.append(('default_exclude_keywords', 'TEXT'))
         
         # Add missing columns
         for column_name, column_type in columns_to_add:

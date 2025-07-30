@@ -46,6 +46,7 @@ class UserPreference(Base):
     default_hours_old = Column(Integer, default=168)  # 1 week
     default_country = Column(String, default="USA")
     default_max_experience = Column(Integer)
+    default_exclude_keywords = Column(String)  # Comma-separated keywords to exclude from job titles
     
     # Salary preferences
     min_salary = Column(Integer)

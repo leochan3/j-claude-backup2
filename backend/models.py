@@ -42,6 +42,7 @@ class UserPreferencesCreate(BaseModel):
     default_hours_old: Optional[int] = 168
     default_country: Optional[str] = "USA"
     default_max_experience: Optional[int] = None
+    default_exclude_keywords: Optional[str] = None
     min_salary: Optional[int] = None
     max_salary: Optional[int] = None
     salary_currency: Optional[str] = "USD"
@@ -62,6 +63,7 @@ class UserPreferencesUpdate(BaseModel):
     default_hours_old: Optional[int] = None
     default_country: Optional[str] = None
     default_max_experience: Optional[int] = None
+    default_exclude_keywords: Optional[str] = None
     min_salary: Optional[int] = None
     max_salary: Optional[int] = None
     salary_currency: Optional[str] = None
@@ -84,6 +86,7 @@ class UserPreferencesResponse(BaseModel):
     default_hours_old: int
     default_country: str
     default_max_experience: Optional[int]
+    default_exclude_keywords: Optional[str]
     min_salary: Optional[int]
     max_salary: Optional[int]
     salary_currency: str
@@ -218,4 +221,5 @@ class AuthenticatedJobSearchRequest(BaseModel):
     hours_old: Optional[int] = None  # Will use user preferences if None
     country_indeed: Optional[str] = None  # Will use user preferences if None
     max_years_experience: Optional[int] = None  # Will use user preferences if None
+    exclude_keywords: Optional[str] = None  # Will use user preferences if None
     save_search: Optional[bool] = False  # Whether to save this search to history

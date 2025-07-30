@@ -89,6 +89,7 @@ class JobSearchRequest(BaseModel):
     offset: Optional[int] = 0
     verbose: Optional[int] = 2  # More verbose to help debug
     max_years_experience: Optional[int] = None  # New: filter jobs by max years of experience
+    exclude_keywords: Optional[str] = None  # Comma-separated keywords to exclude from job titles
 
 class JobSearchResponse(BaseModel):
     success: bool
@@ -232,6 +233,55 @@ def extract_max_years_experience(description: str) -> Optional[int]:
     if matches:
         return max(matches)
     return None
+
+def filter_jobs_by_excluded_keywords(jobs_list: List[dict], exclude_keywords: str) -> List[dict]:
+    """Filter out jobs that contain excluded keywords in their title."""
+    if not exclude_keywords or not exclude_keywords.strip():
+        return jobs_list
+        
+    # Parse comma-separated keywords and clean them
+    keywords = [keyword.strip().lower() for keyword in exclude_keywords.split(',') if keyword.strip()]
+    
+    if not keywords:
+        return jobs_list
+    
+    # Create expanded keyword list to handle common abbreviations
+    expanded_keywords = []
+    for keyword in keywords:
+        expanded_keywords.append(keyword)
+        # Add common abbreviations
+        if keyword == 'senior':
+            expanded_keywords.extend(['sr.', 'sr', 'snr'])
+        elif keyword == 'junior':
+            expanded_keywords.extend(['jr.', 'jr'])
+        elif keyword == 'principal':
+            expanded_keywords.extend(['princ', 'prin'])
+        elif keyword == 'lead':
+            expanded_keywords.extend(['tech lead', 'team lead'])
+        elif keyword == 'manager':
+            expanded_keywords.extend(['mgr', 'mgmt'])
+    
+    filtered_jobs = []
+    excluded_count = 0
+    
+    for job in jobs_list:
+        job_title = job.get('title', '').lower()
+        should_exclude = False
+        
+        # Check if any excluded keyword is in the job title
+        for keyword in expanded_keywords:
+            if keyword in job_title:
+                should_exclude = True
+                excluded_count += 1
+                break
+        
+        if not should_exclude:
+            filtered_jobs.append(job)
+    
+    if excluded_count > 0:
+        print(f"Excluded {excluded_count} jobs containing keywords: {', '.join(keywords)}")
+    
+    return filtered_jobs
 
 @app.get("/")
 async def root():
@@ -438,7 +488,8 @@ async def search_jobs(
             results_wanted=request.results_wanted or (user_preferences.default_results_wanted if user_preferences else 100),
             hours_old=request.hours_old or (user_preferences.default_hours_old if user_preferences else 168),
             country_indeed=request.country_indeed or (user_preferences.default_country if user_preferences else "USA"),
-            max_years_experience=request.max_years_experience or (user_preferences.default_max_experience if user_preferences else None)
+            max_years_experience=request.max_years_experience or (user_preferences.default_max_experience if user_preferences else None),
+            exclude_keywords=request.exclude_keywords or (user_preferences.default_exclude_keywords if user_preferences else None)
         )
         
         # Parse multiple job titles (comma-separated)
@@ -525,6 +576,10 @@ async def search_jobs(
                     if max_yoe is None or max_yoe <= effective_request.max_years_experience:
                         filtered_jobs.append(job)
                 jobs_list = filtered_jobs
+            
+            # Filter by excluded keywords if set
+            if effective_request.exclude_keywords:
+                jobs_list = filter_jobs_by_excluded_keywords(jobs_list, effective_request.exclude_keywords)
             filter_info = ""
             if companies:
                 if len(companies) == 1:
@@ -553,7 +608,7 @@ async def search_jobs(
                 message=f"Successfully found {len(jobs_list)} jobs{filter_info}",
                 job_count=len(jobs_list),
                 jobs=jobs_list,
-                search_params={**base_search_params, "company_filter": effective_request.company_filter, "search_term": effective_request.search_term, "location": effective_request.location, "max_years_experience": effective_request.max_years_experience},
+                search_params={**base_search_params, "company_filter": effective_request.company_filter, "search_term": effective_request.search_term, "location": effective_request.location, "max_years_experience": effective_request.max_years_experience, "exclude_keywords": effective_request.exclude_keywords},
                 timestamp=datetime.now().isoformat()
             )
         else:
@@ -582,7 +637,7 @@ async def search_jobs(
                 message=f"No jobs found matching your criteria{filter_info}",
                 job_count=0,
                 jobs=[],
-                search_params={**base_search_params, "company_filter": effective_request.company_filter, "search_term": effective_request.search_term, "location": effective_request.location},
+                search_params={**base_search_params, "company_filter": effective_request.company_filter, "search_term": effective_request.search_term, "location": effective_request.location, "exclude_keywords": effective_request.exclude_keywords},
                 timestamp=datetime.now().isoformat()
             )
     except Exception as e:
@@ -677,6 +732,10 @@ async def search_jobs_public(request: JobSearchRequest):
                             job_dict[col] = str(row[col])
                 jobs_list.append(job_dict)
             
+            # Filter by excluded keywords if set
+            if effective_request.exclude_keywords:
+                jobs_list = filter_jobs_by_excluded_keywords(jobs_list, effective_request.exclude_keywords)
+            
             # Remove duplicates based on job_url
             unique_jobs = {}
             for job in jobs_list:
@@ -698,7 +757,7 @@ async def search_jobs_public(request: JobSearchRequest):
                 message=f"Found {len(unique_jobs_list)} unique jobs (removed {len(jobs_list) - len(unique_jobs_list)} duplicates) in {search_duration:.2f} seconds",
                 job_count=len(unique_jobs_list),
                 jobs=unique_jobs_list,
-                search_params={**base_search_params, "company_filter": effective_request.company_filter, "search_term": effective_request.search_term, "location": effective_request.location},
+                search_params={**base_search_params, "company_filter": effective_request.company_filter, "search_term": effective_request.search_term, "location": effective_request.location, "exclude_keywords": effective_request.exclude_keywords},
                 timestamp=datetime.now().isoformat()
             )
         else:
@@ -707,7 +766,7 @@ async def search_jobs_public(request: JobSearchRequest):
                 message="No jobs found matching your criteria",
                 job_count=0,
                 jobs=[],
-                search_params={**base_search_params, "company_filter": effective_request.company_filter, "search_term": effective_request.search_term, "location": effective_request.location},
+                search_params={**base_search_params, "company_filter": effective_request.company_filter, "search_term": effective_request.search_term, "location": effective_request.location, "exclude_keywords": effective_request.exclude_keywords},
                 timestamp=datetime.now().isoformat()
             )
     except Exception as e:

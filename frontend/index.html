@@ -1103,6 +1103,15 @@
                     </div>
 
                     <div class="form-group">
+                        <label for="exclude-keywords">Exclude Keywords (Optional)</label>
+                        <input type="text" id="exclude-keywords" name="exclude_keywords" value="" placeholder="e.g., senior, manager, lead">
+                        <small style="color: #666; font-size: 0.85rem; margin-top: 4px; display: block;">
+                            ❌ <strong>Exclude jobs with these words in the title:</strong> Use commas to exclude multiple (e.g., "senior, manager, lead")<br>
+                            💡 <strong>Leave empty to see ALL job titles</strong>
+                        </small>
+                    </div>
+
+                    <div class="form-group">
                         <label for="location">Location</label>
                         <input type="text" id="location" name="location" value="USA">
                     </div>
@@ -1539,6 +1548,10 @@
                                 <div class="preference-group">
                                     <label>Default Company Filter:</label>
                                     <input type="text" id="pref-company-filter" name="default_company_filter" placeholder="e.g., Google, Microsoft, Apple">
+                                </div>
+                                <div class="preference-group">
+                                    <label>Default Exclude Keywords:</label>
+                                    <input type="text" id="pref-exclude-keywords" name="default_exclude_keywords" placeholder="e.g., senior, manager, lead">
                                 </div>
                                 <div class="preference-group">
                                     <label>Default Location:</label>
@@ -2102,6 +2115,9 @@
             if (preferences.default_company_filter) {
                 document.getElementById('pref-company-filter').value = preferences.default_company_filter;
             }
+            if (preferences.default_exclude_keywords) {
+                document.getElementById('pref-exclude-keywords').value = preferences.default_exclude_keywords;
+            }
             if (preferences.default_location) {
                 document.getElementById('pref-location').value = preferences.default_location;
             }
@@ -2137,6 +2153,9 @@
             }
             if (preferences.default_company_filter) {
                 document.getElementById('company-filter').value = preferences.default_company_filter;
+            }
+            if (preferences.default_exclude_keywords) {
+                document.getElementById('exclude-keywords').value = preferences.default_exclude_keywords;
             }
             if (preferences.default_location) {
                 document.getElementById('location').value = preferences.default_location;
@@ -2310,6 +2329,7 @@
                     if (searchData.search_term) document.getElementById('search-term').value = searchData.search_term;
                     if (searchData.location) document.getElementById('location').value = searchData.location;
                     if (searchData.company_filter) document.getElementById('company-filter').value = searchData.company_filter;
+                    if (searchData.exclude_keywords) document.getElementById('exclude-keywords').value = searchData.exclude_keywords;
                     if (searchData.job_type) document.getElementById('job-type').value = searchData.job_type;
                     if (searchData.results_wanted) document.getElementById('results-wanted').value = searchData.results_wanted;
                     
@@ -2392,6 +2412,12 @@
                 const companyFilter = document.getElementById('company-filter').value.trim();
                 if (companyFilter) {
                     searchData.company_filter = companyFilter;
+                }
+                
+                // Only include exclude_keywords if it's not empty
+                const excludeKeywords = document.getElementById('exclude-keywords').value.trim();
+                if (excludeKeywords) {
+                    searchData.exclude_keywords = excludeKeywords;
                 }
                 // Don't send company_filter at all if it's empty
                 
