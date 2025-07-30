@@ -430,7 +430,7 @@ async def search_jobs(
         effective_request = JobSearchRequest(
             site_name=request.site_name or (user_preferences.default_sites if user_preferences else ["indeed"]),
             search_term=request.search_term,
-            company_filter=request.company_filter,
+            company_filter=request.company_filter or (user_preferences.default_company_filter if user_preferences else None),
             location=request.location or (user_preferences.default_location if user_preferences else "USA"),
             distance=request.distance or (user_preferences.default_distance if user_preferences else 50),
             job_type=request.job_type or (user_preferences.default_job_type if user_preferences else None),

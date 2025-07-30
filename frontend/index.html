@@ -1533,6 +1533,14 @@
                             <div class="profile-section">
                                 <h3>Default Search Settings</h3>
                                 <div class="preference-group">
+                                    <label>Default Job Title/Search Term:</label>
+                                    <input type="text" id="pref-search-term" name="default_search_term" placeholder="e.g., Software Engineer, Data Analyst">
+                                </div>
+                                <div class="preference-group">
+                                    <label>Default Company Filter:</label>
+                                    <input type="text" id="pref-company-filter" name="default_company_filter" placeholder="e.g., Google, Microsoft, Apple">
+                                </div>
+                                <div class="preference-group">
                                     <label>Default Location:</label>
                                     <input type="text" id="pref-location" name="default_location" placeholder="e.g., USA">
                                 </div>
@@ -1553,6 +1561,10 @@
                                 <div class="preference-checkbox">
                                     <input type="checkbox" id="pref-remote" name="prefer_remote">
                                     <label for="pref-remote">Prefer Remote Jobs</label>
+                                </div>
+                                <div class="preference-group">
+                                    <label>Hours Since Posted:</label>
+                                    <input type="number" id="pref-hours-old" name="default_hours_old" placeholder="e.g., 168 (1 week)" min="1">
                                 </div>
                                 <div class="preference-group">
                                     <label>Max Salary Filter:</label>
@@ -2084,6 +2096,12 @@
         }
 
         function populatePreferencesForm(preferences) {
+            if (preferences.default_search_term) {
+                document.getElementById('pref-search-term').value = preferences.default_search_term;
+            }
+            if (preferences.default_company_filter) {
+                document.getElementById('pref-company-filter').value = preferences.default_company_filter;
+            }
             if (preferences.default_location) {
                 document.getElementById('pref-location').value = preferences.default_location;
             }
@@ -2093,17 +2111,20 @@
             if (preferences.default_job_type) {
                 document.getElementById('pref-job-type').value = preferences.default_job_type;
             }
+            if (preferences.default_hours_old) {
+                document.getElementById('pref-hours-old').value = preferences.default_hours_old;
+            }
             if (preferences.max_salary) {
                 document.getElementById('pref-max-salary').value = preferences.max_salary;
             }
 
-            document.getElementById('pref-remote').checked = preferences.prefer_remote || false;
-            document.getElementById('pref-email-alerts').checked = preferences.email_alerts || false;
+            document.getElementById('pref-remote').checked = preferences.default_remote || false;
+            document.getElementById('pref-email-alerts').checked = preferences.email_notifications || false;
             document.getElementById('pref-save-searches').checked = preferences.save_search_history || false;
 
             // Set preferred sites
-            if (preferences.preferred_sites) {
-                const sites = Array.isArray(preferences.preferred_sites) ? preferences.preferred_sites : [];
+            if (preferences.default_sites) {
+                const sites = Array.isArray(preferences.default_sites) ? preferences.default_sites : [];
                 document.querySelectorAll('input[name="preferred_sites"]').forEach(checkbox => {
                     checkbox.checked = sites.includes(checkbox.value);
                 });
@@ -2111,6 +2132,12 @@
         }
 
         function applyPreferencesToSearchForm(preferences) {
+            if (preferences.default_search_term) {
+                document.getElementById('search-term').value = preferences.default_search_term;
+            }
+            if (preferences.default_company_filter) {
+                document.getElementById('company-filter').value = preferences.default_company_filter;
+            }
             if (preferences.default_location) {
                 document.getElementById('location').value = preferences.default_location;
             }
@@ -2120,15 +2147,18 @@
             if (preferences.default_job_type) {
                 document.getElementById('job-type').value = preferences.default_job_type;
             }
+            if (preferences.default_hours_old) {
+                document.getElementById('hours-old').value = preferences.default_hours_old;
+            }
             if (preferences.max_salary) {
                 document.getElementById('max-salary').value = preferences.max_salary;
             }
 
-            document.getElementById('is-remote').checked = preferences.prefer_remote || false;
+            document.getElementById('is-remote').checked = preferences.default_remote || false;
 
             // Set preferred sites in search form
-            if (preferences.preferred_sites) {
-                const sites = Array.isArray(preferences.preferred_sites) ? preferences.preferred_sites : [];
+            if (preferences.default_sites) {
+                const sites = Array.isArray(preferences.default_sites) ? preferences.default_sites : [];
                 document.querySelectorAll('input[name="site_name"]').forEach(checkbox => {
                     checkbox.checked = sites.includes(checkbox.value);
                 });
@@ -2155,16 +2185,16 @@
             }
 
             // Handle checkboxes
-            preferences.prefer_remote = document.getElementById('pref-remote').checked;
-            preferences.email_alerts = document.getElementById('pref-email-alerts').checked;
+            preferences.default_remote = document.getElementById('pref-remote').checked;
+            preferences.email_notifications = document.getElementById('pref-email-alerts').checked;
             preferences.save_search_history = document.getElementById('pref-save-searches').checked;
 
             // Handle preferred sites
-            const preferredSites = [];
+            const defaultSites = [];
             document.querySelectorAll('input[name="preferred_sites"]:checked').forEach(checkbox => {
-                preferredSites.push(checkbox.value);
+                defaultSites.push(checkbox.value);
             });
-            preferences.preferred_sites = preferredSites;
+            preferences.default_sites = defaultSites;
 
             try {
                 const response = await fetch(`${API_BASE_URL}/user/preferences`, {

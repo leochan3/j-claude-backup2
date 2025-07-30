@@ -32,6 +32,8 @@ class Token(BaseModel):
 # User Preferences Models
 class UserPreferencesCreate(BaseModel):
     default_sites: Optional[List[str]] = ["indeed"]
+    default_search_term: Optional[str] = None
+    default_company_filter: Optional[str] = None
     default_location: Optional[str] = "USA"
     default_distance: Optional[int] = 50
     default_job_type: Optional[str] = None
@@ -50,6 +52,8 @@ class UserPreferencesCreate(BaseModel):
 
 class UserPreferencesUpdate(BaseModel):
     default_sites: Optional[List[str]] = None
+    default_search_term: Optional[str] = None
+    default_company_filter: Optional[str] = None
     default_location: Optional[str] = None
     default_distance: Optional[int] = None
     default_job_type: Optional[str] = None
@@ -70,6 +74,8 @@ class UserPreferencesResponse(BaseModel):
     id: str
     user_id: str
     default_sites: List[str]
+    default_search_term: Optional[str]
+    default_company_filter: Optional[str]
     default_location: str
     default_distance: int
     default_job_type: Optional[str]

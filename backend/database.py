@@ -36,6 +36,8 @@ class UserPreference(Base):
     
     # Default search preferences
     default_sites = Column(JSON, default=["indeed"])  # List of preferred job sites
+    default_search_term = Column(String)  # Default job title/search term
+    default_company_filter = Column(String)  # Default company filter
     default_location = Column(String, default="USA")
     default_distance = Column(Integer, default=50)
     default_job_type = Column(String)  # full-time, part-time, contract, etc.
