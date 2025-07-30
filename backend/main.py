@@ -1,5 +1,7 @@
 from fastapi import FastAPI, HTTPException, Request, Query, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 import pandas as pd
@@ -16,16 +18,16 @@ import asyncio
 from openai import OpenAI
 import uuid
 from sqlalchemy.orm import Session
-from database import create_tables, get_db, User
-from models import (
+from backend.database import create_tables, get_db, User
+from backend.models import (
     UserCreate, UserLogin, UserResponse, Token,
     UserPreferencesCreate, UserPreferencesUpdate, UserPreferencesResponse,
     SaveJobRequest as NewSaveJobRequest, SavedJobUpdate, SavedJobResponse as NewSavedJobResponse,
     SearchHistoryResponse, SavedSearchCreate, SavedSearchUpdate, SavedSearchResponse,
     AuthenticatedJobSearchRequest
 )
-from auth import authenticate_user, create_access_token, get_current_active_user, ACCESS_TOKEN_EXPIRE_MINUTES
-from user_service import UserService
+from backend.auth import authenticate_user, create_access_token, get_current_active_user, ACCESS_TOKEN_EXPIRE_MINUTES
+from backend.user_service import UserService
 import time
 
 # Load environment variables
@@ -69,6 +71,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Mount static files (frontend)
+app.mount("/static", StaticFiles(directory="frontend"), name="static")
 
 # Saved Jobs Storage Management
 SAVED_JOBS_FILE = "saved_jobs.json"
@@ -285,6 +290,10 @@ def filter_jobs_by_excluded_keywords(jobs_list: List[dict], exclude_keywords: st
 
 @app.get("/")
 async def root():
+    return FileResponse("frontend/index.html")
+
+@app.get("/api")
+async def api_info():
     return {
         "message": "JobSpy API with User Accounts is running!", 
         "endpoints": [

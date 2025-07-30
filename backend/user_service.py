@@ -1,12 +1,12 @@
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from fastapi import HTTPException, status
-from database import User, UserPreference, UserSavedJob, SearchHistory, SavedSearch
-from models import (
+from backend.database import User, UserPreference, UserSavedJob, SearchHistory, SavedSearch
+from backend.models import (
     UserCreate, UserPreferencesCreate, UserPreferencesUpdate,
     SaveJobRequest, SavedJobUpdate, SavedSearchCreate, SavedSearchUpdate
 )
-from auth import get_password_hash
+from backend.auth import get_password_hash
 from datetime import datetime
 from typing import List, Optional
 import uuid
