@@ -38,7 +38,7 @@ OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4.1-nano")
 
 # Environment validation
 BACKEND_HOST = os.getenv("BACKEND_HOST", "0.0.0.0")
-BACKEND_PORT = int(os.getenv("BACKEND_PORT", "8000"))
+BACKEND_PORT = int(os.getenv("PORT", os.getenv("BACKEND_PORT", "8000")))
 DEBUG = os.getenv("DEBUG", "false").lower() == "true"
 
 if OPENAI_API_KEY and OPENAI_API_KEY != "your_openai_api_key_here":
