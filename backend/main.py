@@ -290,7 +290,7 @@ def filter_jobs_by_excluded_keywords(jobs_list: List[dict], exclude_keywords: st
 
 @app.get("/")
 async def root():
-    return FileResponse("frontend/index.html")
+    return FileResponse("../frontend/index.html")
 
 @app.get("/api")
 async def api_info():
@@ -1660,11 +1660,11 @@ async def download_latex_file(request: dict):
 @app.get("/{catchall:path}")
 async def serve_frontend_static(catchall: str):
     # Serve static files from frontend directory 
-    file_path = f"frontend/{catchall}"
+    file_path = f"../frontend/{catchall}"
     if os.path.exists(file_path) and os.path.isfile(file_path):
         return FileResponse(file_path)
     # For any non-existent routes, serve index.html (SPA behavior)
-    return FileResponse("frontend/index.html")
+    return FileResponse("../frontend/index.html")
 
 if __name__ == "__main__":
     print(f"Starting JobSpy API server on {BACKEND_HOST}:{BACKEND_PORT}")
