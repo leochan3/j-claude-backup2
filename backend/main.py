@@ -1,7 +1,5 @@
 from fastapi import FastAPI, HTTPException, Request, Query, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 import pandas as pd
@@ -18,16 +16,20 @@ import asyncio
 from openai import OpenAI
 import uuid
 from sqlalchemy.orm import Session
-from database import create_tables, get_db, User
+from database import create_tables, get_db, User, TargetCompany, ScrapedJob, ScrapingRun
 from models import (
     UserCreate, UserLogin, UserResponse, Token,
     UserPreferencesCreate, UserPreferencesUpdate, UserPreferencesResponse,
     SaveJobRequest as NewSaveJobRequest, SavedJobUpdate, SavedJobResponse as NewSavedJobResponse,
     SearchHistoryResponse, SavedSearchCreate, SavedSearchUpdate, SavedSearchResponse,
-    AuthenticatedJobSearchRequest
+    AuthenticatedJobSearchRequest,
+    TargetCompanyCreate, TargetCompanyUpdate, TargetCompanyResponse,
+    ScrapedJobResponse, ScrapedJobSearchRequest, ScrapedJobSearchResponse,
+    ScrapingRunCreate, ScrapingRunResponse, BulkScrapingRequest
 )
 from auth import authenticate_user, create_access_token, get_current_active_user, ACCESS_TOKEN_EXPIRE_MINUTES
 from user_service import UserService
+from job_scraper import job_scraper
 import time
 
 # Load environment variables
@@ -40,7 +42,7 @@ OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4.1-nano")
 
 # Environment validation
 BACKEND_HOST = os.getenv("BACKEND_HOST", "0.0.0.0")
-BACKEND_PORT = int(os.getenv("PORT", os.getenv("BACKEND_PORT", "8000")))
+BACKEND_PORT = int(os.getenv("BACKEND_PORT", "8000"))
 DEBUG = os.getenv("DEBUG", "false").lower() == "true"
 
 if OPENAI_API_KEY and OPENAI_API_KEY != "your_openai_api_key_here":
@@ -71,9 +73,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# Mount static files (frontend) - this should come AFTER all API routes are defined
-# We'll move this to the end of the file
 
 # Saved Jobs Storage Management
 SAVED_JOBS_FILE = "saved_jobs.json"
@@ -290,22 +289,24 @@ def filter_jobs_by_excluded_keywords(jobs_list: List[dict], exclude_keywords: st
 
 @app.get("/")
 async def root():
-    return FileResponse("../frontend/index.html")
-
-@app.get("/api")
-async def api_info():
     return {
-        "message": "JobSpy API with User Accounts is running!", 
+        "message": "JobSpy API with User Accounts and Local Job Database is running!", 
         "endpoints": [
             "/docs - API documentation",
             "/auth/register - User registration",
             "/auth/login - User login",
-            "/search-jobs - Search for jobs (authenticated)",
+            "/search-jobs - Search for jobs via external APIs (authenticated)",
+            "/search-jobs-local - Search jobs from local database (authenticated)",
+            "/search-jobs-local-public - Search jobs from local database (public)",
             "/ai-filter-jobs - AI-powered job analysis and filtering",
             "/user/preferences - Manage user preferences",
             "/user/saved-jobs - Manage saved jobs",
             "/user/search-history - View search history",
             "/user/saved-searches - Manage saved search templates",
+            "/admin/target-companies - Manage companies for scraping",
+            "/admin/scrape-bulk - Bulk scrape jobs for companies",
+            "/admin/scraping-runs - View scraping run history",
+            "/admin/database-stats - Database statistics",
             "/supported-sites - Get supported job sites",
             "/supported-countries - Get supported countries",
             "/health - Health check"
@@ -314,6 +315,9 @@ async def api_info():
             "user_accounts": True,
             "personalized_preferences": True,
             "job_session_storage": True,
+            "local_job_database": True,
+            "proactive_job_scraping": True,
+            "intelligent_deduplication": True,
             "ai_filtering": openai_client is not None,
             "ai_model": OPENAI_MODEL if openai_client else "Not configured"
         }
@@ -1540,6 +1544,401 @@ async def get_saved_jobs_categorized():
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error retrieving categorized saved jobs: {str(e)}")
 
+# ==========================================
+# JOB SCRAPING AND LOCAL SEARCH ENDPOINTS
+# ==========================================
+
+@app.post("/search-jobs-local", response_model=ScrapedJobSearchResponse)
+async def search_jobs_local(
+    request: ScrapedJobSearchRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Search jobs from local database instead of external APIs."""
+    try:
+        start_time = datetime.now()
+        
+        # Search local database
+        jobs, total_count = job_scraper.search_local_jobs(
+            db=db,
+            search_term=request.search_term,
+            company_names=request.company_names,
+            locations=request.locations,
+            job_types=request.job_types,
+            is_remote=request.is_remote,
+            min_salary=request.min_salary,
+            max_salary=request.max_salary,
+            max_experience_years=request.max_experience_years,
+            sites=request.sites,
+            days_old=request.days_old,
+            limit=request.limit,
+            offset=request.offset
+        )
+        
+        # Convert to response format
+        job_responses = [ScrapedJobResponse.from_orm(job) for job in jobs]
+        
+        # Save search to history if requested
+        if getattr(request, 'save_search', True):
+            search_duration = int((datetime.now() - start_time).total_seconds())
+            UserService.add_search_history(
+                db, current_user.id,
+                request.dict(),
+                len(job_responses),
+                search_duration
+            )
+        
+        return ScrapedJobSearchResponse(
+            success=True,
+            message=f"Found {len(job_responses)} jobs from local database (total: {total_count})",
+            total_count=total_count,
+            jobs=job_responses,
+            search_params=request.dict(),
+            timestamp=datetime.now()
+        )
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error searching local jobs: {str(e)}"
+        )
+
+@app.post("/search-jobs-local-public", response_model=ScrapedJobSearchResponse)
+async def search_jobs_local_public(
+    request: ScrapedJobSearchRequest,
+    db: Session = Depends(get_db)
+):
+    """Search jobs from local database without authentication (public endpoint)."""
+    try:
+        # Search local database
+        jobs, total_count = job_scraper.search_local_jobs(
+            db=db,
+            search_term=request.search_term,
+            company_names=request.company_names,
+            locations=request.locations,
+            job_types=request.job_types,
+            is_remote=request.is_remote,
+            min_salary=request.min_salary,
+            max_salary=request.max_salary,
+            max_experience_years=request.max_experience_years,
+            sites=request.sites,
+            days_old=request.days_old,
+            limit=request.limit,
+            offset=request.offset
+        )
+        
+        # Convert to response format
+        job_responses = [ScrapedJobResponse.from_orm(job) for job in jobs]
+        
+        return ScrapedJobSearchResponse(
+            success=True,
+            message=f"Found {len(job_responses)} jobs from local database (total: {total_count})",
+            total_count=total_count,
+            jobs=job_responses,
+            search_params=request.dict(),
+            timestamp=datetime.now()
+        )
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error searching local jobs: {str(e)}"
+        )
+
+# Target Company Management Endpoints
+@app.post("/admin/target-companies", response_model=TargetCompanyResponse)
+async def create_target_company(
+    company_create: TargetCompanyCreate,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Create a new target company for scraping."""
+    # Check if company already exists
+    existing = db.query(TargetCompany).filter(
+        TargetCompany.name.ilike(f"%{company_create.name}%")
+    ).first()
+    
+    if existing:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Company '{company_create.name}' already exists"
+        )
+    
+    target_company = TargetCompany(
+        name=company_create.name,
+        display_name=company_create.display_name or company_create.name,
+        preferred_sites=company_create.preferred_sites,
+        search_terms=company_create.search_terms,
+        location_filters=company_create.location_filters
+    )
+    
+    db.add(target_company)
+    db.commit()
+    db.refresh(target_company)
+    
+    return TargetCompanyResponse.from_orm(target_company)
+
+@app.get("/admin/target-companies")
+async def get_target_companies(
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Get all target companies."""
+    companies = db.query(TargetCompany).filter(
+        TargetCompany.is_active == True
+    ).order_by(TargetCompany.name).all()
+    
+    return {
+        "success": True,
+        "companies": [TargetCompanyResponse.from_orm(company) for company in companies],
+        "total_count": len(companies)
+    }
+
+@app.put("/admin/target-companies/{company_id}")
+async def update_target_company(
+    company_id: str,
+    company_update: TargetCompanyUpdate,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Update a target company."""
+    company = db.query(TargetCompany).filter(TargetCompany.id == company_id).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+    
+    # Update fields
+    update_data = company_update.dict(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(company, field, value)
+    
+    db.commit()
+    db.refresh(company)
+    
+    return {
+        "success": True,
+        "message": "Company updated successfully",
+        "company": TargetCompanyResponse.from_orm(company)
+    }
+
+@app.delete("/admin/target-companies/{company_id}")
+async def delete_target_company(
+    company_id: str,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Soft delete a target company."""
+    company = db.query(TargetCompany).filter(TargetCompany.id == company_id).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+    
+    company.is_active = False
+    db.commit()
+    
+    return {
+        "success": True,
+        "message": f"Company '{company.name}' deactivated successfully"
+    }
+
+# Job Scraping Endpoints
+@app.post("/admin/scrape-bulk", response_model=ScrapingRunResponse)
+async def scrape_companies_bulk(
+    request: BulkScrapingRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Scrape jobs for multiple companies in bulk."""
+    try:
+        print(f"🚀 Starting bulk scraping for {len(request.company_names)} companies")
+        
+        # Start the scraping process
+        scraping_run = await job_scraper.bulk_scrape_companies(request, db)
+        
+        return ScrapingRunResponse.from_orm(scraping_run)
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error during bulk scraping: {str(e)}"
+        )
+
+@app.post("/scrape-bulk-public", response_model=ScrapingRunResponse)
+async def scrape_companies_bulk_public(
+    request: BulkScrapingRequest,
+    db: Session = Depends(get_db)
+):
+    """Scrape jobs for multiple companies in bulk (public endpoint - no auth required)."""
+    try:
+        print(f"🚀 Starting public bulk scraping for {len(request.company_names)} companies")
+        
+        # Start the scraping process
+        scraping_run = await job_scraper.bulk_scrape_companies(request, db)
+        
+        return ScrapingRunResponse.from_orm(scraping_run)
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error during bulk scraping: {str(e)}"
+        )
+
+@app.get("/admin/scraping-runs")
+async def get_scraping_runs(
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Get scraping run history."""
+    runs = db.query(ScrapingRun).order_by(
+        ScrapingRun.started_at.desc()
+    ).offset(offset).limit(limit).all()
+    
+    total_count = db.query(ScrapingRun).count()
+    
+    return {
+        "success": True,
+        "scraping_runs": [ScrapingRunResponse.from_orm(run) for run in runs],
+        "total_count": total_count,
+        "limit": limit,
+        "offset": offset
+    }
+
+@app.get("/admin/scraping-runs/{run_id}")
+async def get_scraping_run(
+    run_id: str,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Get detailed information about a specific scraping run."""
+    run = db.query(ScrapingRun).filter(ScrapingRun.id == run_id).first()
+    if not run:
+        raise HTTPException(status_code=404, detail="Scraping run not found")
+    
+    return {
+        "success": True,
+        "scraping_run": ScrapingRunResponse.from_orm(run)
+    }
+
+@app.get("/admin/database-stats")
+async def get_database_stats(
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Get database statistics."""
+    try:
+        # Count jobs by status
+        total_jobs = db.query(ScrapedJob).filter(ScrapedJob.is_active == True).count()
+        jobs_last_30_days = db.query(ScrapedJob).filter(
+            ScrapedJob.is_active == True,
+            ScrapedJob.date_scraped >= datetime.now() - timedelta(days=30)
+        ).count()
+        
+        # Count companies
+        total_companies = db.query(TargetCompany).filter(TargetCompany.is_active == True).count()
+        
+        # Count scraping runs
+        total_runs = db.query(ScrapingRun).count()
+        successful_runs = db.query(ScrapingRun).filter(ScrapingRun.status == "completed").count()
+        
+        # Top companies by job count
+        from sqlalchemy import func
+        top_companies = db.query(
+            ScrapedJob.company,
+            func.count(ScrapedJob.id).label('job_count')
+        ).filter(
+            ScrapedJob.is_active == True
+        ).group_by(ScrapedJob.company).order_by(
+            func.count(ScrapedJob.id).desc()
+        ).limit(10).all()
+        
+        return {
+            "success": True,
+            "stats": {
+                "total_jobs": total_jobs,
+                "jobs_last_30_days": jobs_last_30_days,
+                "total_companies": total_companies,
+                "total_scraping_runs": total_runs,
+                "successful_runs": successful_runs,
+                "success_rate": round((successful_runs / total_runs * 100) if total_runs > 0 else 0, 2),
+                "top_companies": [
+                    {"company": company, "job_count": count}
+                    for company, count in top_companies
+                ]
+            },
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error getting database stats: {str(e)}"
+        )
+
+@app.get("/database-stats-public")
+async def get_database_stats_public(db: Session = Depends(get_db)):
+    """Get database statistics (public endpoint - no auth required)."""
+    try:
+        # Count jobs by status
+        total_jobs = db.query(ScrapedJob).filter(ScrapedJob.is_active == True).count()
+        jobs_last_30_days = db.query(ScrapedJob).filter(
+            ScrapedJob.is_active == True,
+            ScrapedJob.date_scraped >= datetime.now() - timedelta(days=30)
+        ).count()
+        
+        # Count companies
+        total_companies = db.query(TargetCompany).filter(TargetCompany.is_active == True).count()
+        
+        # Count scraping runs
+        total_runs = db.query(ScrapingRun).count()
+        successful_runs = db.query(ScrapingRun).filter(ScrapingRun.status == "completed").count()
+        
+        # Top companies by job count
+        from sqlalchemy import func
+        top_companies = db.query(
+            ScrapedJob.company,
+            func.count(ScrapedJob.id).label('job_count')
+        ).filter(
+            ScrapedJob.is_active == True
+        ).group_by(ScrapedJob.company).order_by(
+            func.count(ScrapedJob.id).desc()
+        ).limit(10).all()
+        
+        return {
+            "success": True,
+            "stats": {
+                "total_jobs": total_jobs,
+                "jobs_last_30_days": jobs_last_30_days,
+                "total_companies": total_companies,
+                "total_scraping_runs": total_runs,
+                "successful_runs": successful_runs,
+                "success_rate": round((successful_runs / total_runs * 100) if total_runs > 0 else 0, 2),
+                "top_companies": [
+                    {"company": company, "job_count": count}
+                    for company, count in top_companies
+                ]
+            },
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error getting database stats: {str(e)}"
+        )
+
+@app.get("/target-companies-public")
+async def get_target_companies_public(db: Session = Depends(get_db)):
+    """Get all target companies (public endpoint - no auth required)."""
+    companies = db.query(TargetCompany).filter(
+        TargetCompany.is_active == True
+    ).order_by(TargetCompany.name).all()
+    
+    return {
+        "success": True,
+        "companies": [TargetCompanyResponse.from_orm(company) for company in companies],
+        "total_count": len(companies)
+    }
+
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""
@@ -1656,18 +2055,8 @@ async def download_latex_file(request: dict):
             detail=f"Error creating LaTeX file: {str(e)}"
         )
 
-# Catch-all route for serving static frontend files (must be last)
-@app.get("/{catchall:path}")
-async def serve_frontend_static(catchall: str):
-    # Serve static files from frontend directory 
-    file_path = f"../frontend/{catchall}"
-    if os.path.exists(file_path) and os.path.isfile(file_path):
-        return FileResponse(file_path)
-    # For any non-existent routes, serve index.html (SPA behavior)
-    return FileResponse("../frontend/index.html")
-
 if __name__ == "__main__":
     print(f"Starting JobSpy API server on {BACKEND_HOST}:{BACKEND_PORT}")
     print(f"API Documentation: http://localhost:{BACKEND_PORT}/docs")
     print(f"Health Check: http://localhost:{BACKEND_PORT}/health")
-    uvicorn.run(app, host=BACKEND_HOST, port=BACKEND_PORT, log_level="info" if DEBUG else "warning") 
+    uvicorn.run(app, host=BACKEND_HOST, port=BACKEND_PORT, log_level="info" if DEBUG else "warning")

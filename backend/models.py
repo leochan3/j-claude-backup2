@@ -223,3 +223,116 @@ class AuthenticatedJobSearchRequest(BaseModel):
     max_years_experience: Optional[int] = None  # Will use user preferences if None
     exclude_keywords: Optional[str] = None  # Will use user preferences if None
     save_search: Optional[bool] = False  # Whether to save this search to history
+
+# Target Company Management Models
+class TargetCompanyCreate(BaseModel):
+    name: str
+    display_name: Optional[str] = None
+    preferred_sites: Optional[List[str]] = ["indeed"]
+    search_terms: Optional[List[str]] = []
+    location_filters: Optional[List[str]] = ["USA"]
+
+class TargetCompanyUpdate(BaseModel):
+    name: Optional[str] = None
+    display_name: Optional[str] = None
+    preferred_sites: Optional[List[str]] = None
+    search_terms: Optional[List[str]] = None
+    location_filters: Optional[List[str]] = None
+    is_active: Optional[bool] = None
+
+class TargetCompanyResponse(BaseModel):
+    id: str
+    name: str
+    display_name: Optional[str]
+    is_active: bool
+    preferred_sites: List[str]
+    search_terms: List[str]
+    location_filters: List[str]
+    last_scraped: Optional[datetime]
+    total_jobs_found: int
+    created_at: datetime
+    updated_at: Optional[datetime]
+    
+    class Config:
+        from_attributes = True
+
+# Scraped Job Models
+class ScrapedJobResponse(BaseModel):
+    id: str
+    job_url: Optional[str]
+    title: str
+    company: str
+    location: Optional[str]
+    site: str
+    description: Optional[str]
+    job_type: Optional[str]
+    is_remote: Optional[bool]
+    min_amount: Optional[float]
+    max_amount: Optional[float]
+    salary_interval: Optional[str]
+    currency: Optional[str]
+    date_posted: Optional[datetime]
+    date_scraped: datetime
+    min_experience_years: Optional[int]
+    max_experience_years: Optional[int]
+    target_company_id: Optional[str]
+    
+    class Config:
+        from_attributes = True
+
+class ScrapedJobSearchRequest(BaseModel):
+    search_term: Optional[str] = None
+    company_names: Optional[List[str]] = None
+    locations: Optional[List[str]] = None
+    job_types: Optional[List[str]] = None
+    is_remote: Optional[bool] = None
+    min_salary: Optional[float] = None
+    max_salary: Optional[float] = None
+    max_experience_years: Optional[int] = None
+    sites: Optional[List[str]] = None
+    days_old: Optional[int] = 30  # Default to last 30 days
+    limit: Optional[int] = 100
+    offset: Optional[int] = 0
+
+class ScrapedJobSearchResponse(BaseModel):
+    success: bool
+    message: str
+    total_count: int
+    jobs: List[ScrapedJobResponse]
+    search_params: Dict[str, Any]
+    timestamp: datetime
+
+# Job Scraping Models
+class ScrapingRunCreate(BaseModel):
+    run_type: str = "manual"  # 'scheduled', 'manual', 'company_specific'
+    company_ids: Optional[List[str]] = None  # Specific companies to scrape
+    sites: Optional[List[str]] = ["indeed"]
+    search_terms: Optional[List[str]] = []
+    locations: Optional[List[str]] = ["USA"]
+    results_per_company: Optional[int] = 100
+
+class ScrapingRunResponse(BaseModel):
+    id: str
+    run_type: str
+    status: str
+    companies_scraped: Optional[List[str]]
+    sites_used: Optional[List[str]]
+    search_parameters: Optional[Dict[str, Any]]
+    total_jobs_found: int
+    new_jobs_added: int
+    duplicate_jobs_skipped: int
+    started_at: datetime
+    completed_at: Optional[datetime]
+    duration_seconds: Optional[int]
+    error_message: Optional[str]
+    
+    class Config:
+        from_attributes = True
+
+class BulkScrapingRequest(BaseModel):
+    company_names: List[str]  # List of company names to scrape
+    search_terms: Optional[List[str]] = ["software engineer", "developer", "data scientist", "product manager"]
+    sites: Optional[List[str]] = ["indeed"]
+    locations: Optional[List[str]] = ["USA"]
+    results_per_company: Optional[int] = 100
+    hours_old: Optional[int] = 720  # 30 days

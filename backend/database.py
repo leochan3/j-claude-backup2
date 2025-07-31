@@ -1,8 +1,9 @@
-from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime, Text, ForeignKey, JSON
+from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime, Text, ForeignKey, JSON, Float, Index
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 from sqlalchemy.sql import func
 import uuid
+import hashlib
 
 DATABASE_URL = "sqlite:///./jobsearch.db"
 
@@ -157,6 +158,117 @@ class SavedSearch(Base):
     
     # Relationships
     user = relationship("User")
+
+class TargetCompany(Base):
+    __tablename__ = "target_companies"
+    
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    name = Column(String, nullable=False)  # Company name for searching
+    display_name = Column(String)  # How to display the company name
+    is_active = Column(Boolean, default=True)
+    
+    # Scraping preferences for this company
+    preferred_sites = Column(JSON, default=["indeed"])  # Which sites to scrape
+    search_terms = Column(JSON, default=[])  # Additional search terms for this company
+    location_filters = Column(JSON, default=["USA"])  # Locations to search
+    
+    # Metadata
+    last_scraped = Column(DateTime(timezone=True))
+    total_jobs_found = Column(Integer, default=0)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    
+    # Relationships
+    scraped_jobs = relationship("ScrapedJob", back_populates="target_company")
+
+class ScrapedJob(Base):
+    __tablename__ = "scraped_jobs"
+    
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    
+    # Deduplication fields
+    job_url = Column(String, index=True)  # Primary deduplication key
+    job_hash = Column(String, unique=True, nullable=False, index=True)  # Hash for deduplication
+    
+    # Core job information
+    title = Column(String, nullable=False, index=True)
+    company = Column(String, nullable=False, index=True)
+    location = Column(String, index=True)
+    site = Column(String, nullable=False)  # indeed, linkedin, etc.
+    
+    # Job details
+    description = Column(Text)
+    job_type = Column(String)  # fulltime, parttime, etc.
+    is_remote = Column(Boolean)
+    
+    # Salary information
+    min_amount = Column(Float)
+    max_amount = Column(Float)
+    salary_interval = Column(String)  # yearly, monthly, hourly
+    currency = Column(String)
+    
+    # Metadata
+    date_posted = Column(DateTime(timezone=True))
+    date_scraped = Column(DateTime(timezone=True), server_default=func.now())
+    is_active = Column(Boolean, default=True)  # For soft deletion
+    
+    # Experience requirements (extracted from description)
+    min_experience_years = Column(Integer)
+    max_experience_years = Column(Integer)
+    
+    # Relationships
+    target_company_id = Column(String, ForeignKey("target_companies.id"))
+    target_company = relationship("TargetCompany", back_populates="scraped_jobs")
+    scraping_run_id = Column(String, ForeignKey("scraping_runs.id"))
+    scraping_run = relationship("ScrapingRun", back_populates="jobs")
+    
+    # Additional indexes for fast searching
+    __table_args__ = (
+        Index('idx_job_search', 'title', 'company', 'location'),
+        Index('idx_job_date', 'date_posted', 'is_active'),
+        Index('idx_job_salary', 'min_amount', 'max_amount'),
+        Index('idx_job_experience', 'min_experience_years', 'max_experience_years'),
+    )
+
+class ScrapingRun(Base):
+    __tablename__ = "scraping_runs"
+    
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    
+    # Run metadata
+    run_type = Column(String, nullable=False)  # 'scheduled', 'manual', 'company_specific'
+    status = Column(String, default='running')  # 'running', 'completed', 'failed'
+    
+    # Run parameters
+    companies_scraped = Column(JSON)  # List of company IDs scraped
+    sites_used = Column(JSON)  # Sites used for scraping
+    search_parameters = Column(JSON)  # Full search parameters
+    
+    # Results
+    total_jobs_found = Column(Integer, default=0)
+    new_jobs_added = Column(Integer, default=0)
+    duplicate_jobs_skipped = Column(Integer, default=0)
+    
+    # Timing
+    started_at = Column(DateTime(timezone=True), server_default=func.now())
+    completed_at = Column(DateTime(timezone=True))
+    duration_seconds = Column(Integer)
+    
+    # Error handling
+    error_message = Column(Text)
+    
+    # Relationships
+    jobs = relationship("ScrapedJob", back_populates="scraping_run")
+
+def create_job_hash(title: str, company: str, location: str, job_url: str = None) -> str:
+    """Create a hash for job deduplication."""
+    # Use job_url if available, otherwise use title+company+location
+    if job_url and job_url.strip():
+        hash_string = job_url.strip().lower()
+    else:
+        hash_string = f"{title.strip().lower()}|{company.strip().lower()}|{location.strip().lower()}"
+    
+    return hashlib.md5(hash_string.encode('utf-8')).hexdigest()
 
 def create_tables():
     Base.metadata.create_all(bind=engine)
