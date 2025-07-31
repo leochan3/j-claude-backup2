@@ -23,14 +23,15 @@ async def scrape_companies(company_names, search_terms=None, locations=None, res
     """Scrape jobs for specified companies."""
     
     if not search_terms:
-        search_terms = ["software engineer", "data scientist", "product manager"]
+        search_terms = []  # Empty list means use comprehensive default terms
     
     if not locations:
         locations = ["USA", "Remote"]
     
     print(f"🚀 Starting scraping for {len(company_names)} companies...")
     print(f"📍 Companies: {', '.join(company_names)}")
-    print(f"🔍 Search terms: {', '.join(search_terms)}")
+    search_terms_display = ', '.join(search_terms) if search_terms else "COMPREHENSIVE (6 common job types)"
+    print(f"🔍 Search terms: {search_terms_display}")
     print(f"📍 Locations: {', '.join(locations)}")
     print(f"📊 Results per company: {results_per_company}")
     print()

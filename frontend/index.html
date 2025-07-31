@@ -1724,7 +1724,8 @@
         </div>
 
     <script>
-        const API_BASE_URL = window.location.origin;
+        // Detect if we're serving from backend or opening file directly
+        const API_BASE_URL = window.location.protocol === 'file:' ? 'http://localhost:8000' : window.location.origin;
         
         // Authentication state management
         let currentUser = null;

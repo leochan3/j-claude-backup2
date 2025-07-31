@@ -76,7 +76,11 @@ class JobScrapingService:
         """Scrape jobs for a specific company."""
         
         if not search_terms:
-            search_terms = ["software engineer", "developer", "data scientist", "product manager"]
+            # If no search terms provided, use comprehensive default terms for better coverage
+            search_terms = ["software engineer", "developer", "data scientist", "product manager", "analyst", "designer"]
+        elif len(search_terms) == 1 and search_terms[0].lower().strip() in ["all", "*", "all jobs"]:
+            # Special case: user explicitly wants to search for all jobs (just company name)
+            search_terms = [""]
         if not sites:
             sites = ["indeed"]
         if not locations:
@@ -89,7 +93,11 @@ class JobScrapingService:
         for location in locations:
             for search_term in search_terms:
                 # Create search term with company name
-                full_search_term = f"{search_term} {company_name}"
+                if search_term.strip():
+                    full_search_term = f"{search_term} {company_name}"
+                else:
+                    # If no specific search term, just search for the company name
+                    full_search_term = company_name
                 
                 try:
                     print(f"  📍 Searching: '{full_search_term}' in {location}")
