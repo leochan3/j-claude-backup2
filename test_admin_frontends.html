@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Frontends Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .test-container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .test-result {
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .success { background: #d4edda; border: 1px solid #c3e6cb; color: #155724; }
+        .error { background: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; }
+        .loading { background: #d1ecf1; border: 1px solid #bee5eb; color: #0c5460; }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background: #0056b3; }
+        button:disabled { 
+            background: #6c757d; 
+            cursor: not-allowed;
+        }
+        .link-button {
+            background: #28a745;
+            text-decoration: none;
+            display: inline-block;
+            padding: 10px 20px;
+            color: white;
+            border-radius: 4px;
+        }
+        .link-button:hover { background: #218838; }
+        pre {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-size: 12px;
+        }
+        .nav-links {
+            text-align: center;
+            margin: 20px 0;
+        }
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        .status-ok { background: #28a745; }
+        .status-error { background: #dc3545; }
+        .status-loading { background: #ffc107; }
+    </style>
+</head>
+<body>
+    <h1>🔧 Admin Frontends Test Dashboard</h1>
+    
+    <div class="nav-links">
+        <a href="database_viewer.html" class="link-button" target="_blank">📊 Database Viewer</a>
+        <a href="scraping_interface.html" class="link-button" target="_blank">🤖 Scraping Interface</a>
+        <a href="frontend/index.html" class="link-button" target="_blank">🔍 Main Job Search</a>
+        <a href="http://localhost:8000/docs" class="link-button" target="_blank">📚 API Docs</a>
+    </div>
+
+    <div class="test-container">
+        <h2>Backend Connectivity</h2>
+        <button onclick="testBackendHealth()">Test Backend Health</button>
+        <div id="health-result"></div>
+    </div>
+
+    <div class="test-container">
+        <h2>Admin Endpoints Test</h2>
+        <button onclick="testAdminEndpoints()">Test All Admin Endpoints</button>
+        <div id="admin-result"></div>
+    </div>
+
+    <div class="test-container">
+        <h2>Sample Company Scraping Test</h2>
+        <button onclick="testSampleScraping()">Test Scraping (2 companies)</button>
+        <div id="scraping-result"></div>
+    </div>
+
+    <div class="test-container">
+        <h2>Frontend Status</h2>
+        <div id="frontend-status">
+            <div><span class="status-indicator status-loading"></span>Checking frontend status...</div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8000';
+
+        function showResult(elementId, message, type = 'success') {
+            const element = document.getElementById(elementId);
+            element.innerHTML = `<div class="test-result ${type}">${message}</div>`;
+        }
+
+        function showLoading(elementId, message) {
+            showResult(elementId, `⏳ ${message}`, 'loading');
+        }
+
+        async function testBackendHealth() {
+            showLoading('health-result', 'Testing backend health...');
+            
+            try {
+                const response = await fetch(`${API_BASE}/health`);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showResult('health-result', 
+                        `✅ Backend is healthy!<br>
+                        Status: ${data.status}<br>
+                        Timestamp: ${data.timestamp}`, 'success');
+                } else {
+                    showResult('health-result', 
+                        `❌ Backend responded with error: ${response.status}`, 'error');
+                }
+            } catch (error) {
+                showResult('health-result', 
+                    `❌ Cannot connect to backend: ${error.message}<br>
+                    Make sure the backend is running: <code>python backend/main.py</code>`, 'error');
+            }
+        }
+
+        async function testAdminEndpoints() {
+            showLoading('admin-result', 'Testing admin endpoints...');
+            
+            const endpoints = [
+                { path: '/database-stats-public', name: 'Database Stats' },
+                { path: '/target-companies-public', name: 'Target Companies' },
+                { path: '/search-jobs-local-public', name: 'Local Job Search', method: 'POST', 
+                  data: { search_term: "test", limit: 1 } }
+            ];
+
+            let results = '<h3>Admin Endpoint Tests:</h3>';
+            let allPassed = true;
+            
+            for (const endpoint of endpoints) {
+                try {
+                    const options = {
+                        method: endpoint.method || 'GET',
+                        headers: { 'Content-Type': 'application/json' }
+                    };
+                    
+                    if (endpoint.data) {
+                        options.body = JSON.stringify(endpoint.data);
+                    }
+                    
+                    const response = await fetch(`${API_BASE}${endpoint.path}`, options);
+                    const data = await response.json();
+                    
+                    if (response.ok) {
+                        results += `
+                            <div class="test-result success">
+                                <strong>✅ ${endpoint.name}</strong><br>
+                                <small>${endpoint.method || 'GET'} ${endpoint.path} - Status: ${response.status}</small>
+                                ${endpoint.path === '/database-stats-public' && data.stats ? 
+                                    `<br><small>📊 Total Jobs: ${data.stats.total_jobs}, Companies: ${data.stats.total_companies}</small>` : ''}
+                                ${endpoint.path === '/target-companies-public' && data.companies ? 
+                                    `<br><small>🏢 ${data.companies.length} companies found</small>` : ''}
+                                ${endpoint.path === '/search-jobs-local-public' && data.jobs ? 
+                                    `<br><small>🔍 ${data.jobs.length} jobs found</small>` : ''}
+                            </div>`;
+                    } else {
+                        allPassed = false;
+                        results += `
+                            <div class="test-result error">
+                                <strong>❌ ${endpoint.name}</strong><br>
+                                <small>${endpoint.method || 'GET'} ${endpoint.path} - Error: ${response.status}</small>
+                                <br><small>Response: ${data.detail || JSON.stringify(data)}</small>
+                            </div>`;
+                    }
+                } catch (error) {
+                    allPassed = false;
+                    results += `
+                        <div class="test-result error">
+                            <strong>❌ ${endpoint.name}</strong><br>
+                            <small>${endpoint.method || 'GET'} ${endpoint.path} - Error: ${error.message}</small>
+                        </div>`;
+                }
+            }
+            
+            if (allPassed) {
+                results = `<div class="test-result success">🎉 All admin endpoints are working! Your admin frontends should work perfectly.</div>` + results;
+            } else {
+                results = `<div class="test-result error">❌ Some admin endpoints failed. Check the details below.</div>` + results;
+            }
+            
+            document.getElementById('admin-result').innerHTML = results;
+        }
+
+        async function testSampleScraping() {
+            showLoading('scraping-result', 'Testing sample scraping (this may take 30-60 seconds)...');
+            
+            const scrapingData = {
+                company_names: ["Uber", "Lyft"],
+                search_terms: ["software engineer"],
+                sites: ["indeed"],
+                locations: ["USA"],
+                results_per_company: 10,
+                hours_old: 720
+            };
+
+            try {
+                const response = await fetch(`${API_BASE}/scrape-bulk-public`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(scrapingData)
+                });
+
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showResult('scraping-result', 
+                        `✅ Sample scraping successful!<br>
+                        Status: ${data.status}<br>
+                        Total Jobs Found: ${data.total_jobs_found}<br>
+                        New Jobs Added: ${data.new_jobs_added}<br>
+                        Duplicates Skipped: ${data.duplicate_jobs_skipped}<br>
+                        Duration: ${data.duration_seconds} seconds<br>
+                        <br>
+                        🎯 The scraping interface is working correctly!`, 'success');
+                } else {
+                    showResult('scraping-result', 
+                        `❌ Sample scraping failed: ${data.detail || JSON.stringify(data)}`, 'error');
+                }
+            } catch (error) {
+                showResult('scraping-result', 
+                    `❌ Scraping test error: ${error.message}`, 'error');
+            }
+        }
+
+        async function checkFrontendStatus() {
+            const statusDiv = document.getElementById('frontend-status');
+            
+            const frontends = [
+                { name: 'Database Viewer', file: 'database_viewer.html' },
+                { name: 'Scraping Interface', file: 'scraping_interface.html' },
+                { name: 'Main Job Search', file: 'frontend/index.html' }
+            ];
+            
+            let statusHtml = '';
+            
+            for (const frontend of frontends) {
+                try {
+                    const response = await fetch(frontend.file, { method: 'HEAD' });
+                    if (response.ok) {
+                        statusHtml += `<div><span class="status-indicator status-ok"></span>✅ ${frontend.name} - Available</div>`;
+                    } else {
+                        statusHtml += `<div><span class="status-indicator status-error"></span>❌ ${frontend.name} - Not Found</div>`;
+                    }
+                } catch (error) {
+                    statusHtml += `<div><span class="status-indicator status-error"></span>❌ ${frontend.name} - Error: ${error.message}</div>`;
+                }
+            }
+            
+            statusDiv.innerHTML = statusHtml;
+        }
+
+        // Auto-run tests on page load
+        window.onload = function() {
+            testBackendHealth();
+            checkFrontendStatus();
+        };
+    </script>
+</body>
+</html>
