@@ -1,5 +1,7 @@
 from fastapi import FastAPI, HTTPException, Request, Query, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 import pandas as pd
@@ -73,6 +75,40 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Serve static files (frontend)
+try:
+    # Mount static files for frontend
+    app.mount("/static", StaticFiles(directory="../frontend"), name="static")
+    app.mount("/admin", StaticFiles(directory="../"), name="admin")
+    print("✅ Static file serving enabled")
+except Exception as e:
+    print(f"⚠️  Static files not available: {e}")
+
+# Serve main frontend at root path
+@app.get("/app")
+async def serve_frontend():
+    """Serve the main job search frontend"""
+    try:
+        return FileResponse("../frontend/index.html")
+    except:
+        return {"message": "Frontend not available", "api_docs": "/docs"}
+
+@app.get("/database-viewer")
+async def serve_database_viewer():
+    """Serve the database viewer admin interface"""
+    try:
+        return FileResponse("../database_viewer.html")
+    except:
+        return {"message": "Database viewer not available", "api_docs": "/docs"}
+
+@app.get("/scraping-interface")
+async def serve_scraping_interface():
+    """Serve the scraping interface admin interface"""
+    try:
+        return FileResponse("../scraping_interface.html")
+    except:
+        return {"message": "Scraping interface not available", "api_docs": "/docs"}
 
 # Saved Jobs Storage Management
 SAVED_JOBS_FILE = "saved_jobs.json"
@@ -291,6 +327,11 @@ def filter_jobs_by_excluded_keywords(jobs_list: List[dict], exclude_keywords: st
 async def root():
     return {
         "message": "JobSpy API with User Accounts and Local Job Database is running!", 
+        "frontends": [
+            "/app - Main Job Search Interface",
+            "/database-viewer - Database Viewer (Admin)",
+            "/scraping-interface - Job Scraping Interface (Admin)"
+        ],
         "endpoints": [
             "/docs - API documentation",
             "/auth/register - User registration",
