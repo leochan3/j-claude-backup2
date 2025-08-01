@@ -9,7 +9,8 @@
       "Bash(open:*)",
       "Bash(git add:*)",
       "Bash(rm:*)",
-      "Bash(wc:*)"
+      "Bash(wc:*)",
+      "Bash(find:*)"
     ],
     "deny": []
   }

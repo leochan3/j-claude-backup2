@@ -24,16 +24,26 @@ def migrate_database():
         cursor.execute("PRAGMA table_info(user_preferences)")
         columns = [column[1] for column in cursor.fetchall()]
         
-        columns_to_add = []
+        # Define all required columns with their types
+        required_columns = {
+            'default_search_term': 'TEXT',
+            'default_company_filter': 'TEXT',
+            'default_exclude_keywords': 'TEXT',
+            'default_max_experience': 'INTEGER',
+            'min_salary': 'INTEGER',
+            'max_salary': 'INTEGER',
+            'salary_currency': 'TEXT DEFAULT "USD"',
+            'email_notifications': 'BOOLEAN DEFAULT 1',
+            'job_alert_frequency': 'TEXT DEFAULT "daily"',
+            'jobs_per_page': 'INTEGER DEFAULT 20',
+            'default_sort': 'TEXT DEFAULT "date_posted"',
+            'updated_at': 'DATETIME'
+        }
         
-        if 'default_search_term' not in columns:
-            columns_to_add.append(('default_search_term', 'TEXT'))
-            
-        if 'default_company_filter' not in columns:
-            columns_to_add.append(('default_company_filter', 'TEXT'))
-            
-        if 'default_exclude_keywords' not in columns:
-            columns_to_add.append(('default_exclude_keywords', 'TEXT'))
+        columns_to_add = []
+        for col_name, col_type in required_columns.items():
+            if col_name not in columns:
+                columns_to_add.append((col_name, col_type))
         
         # Add missing columns
         for column_name, column_type in columns_to_add:

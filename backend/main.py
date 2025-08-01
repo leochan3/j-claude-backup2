@@ -1761,26 +1761,6 @@ async def scrape_companies_bulk(
             detail=f"Error during bulk scraping: {str(e)}"
         )
 
-@app.post("/scrape-bulk-public", response_model=ScrapingRunResponse)
-async def scrape_companies_bulk_public(
-    request: BulkScrapingRequest,
-    db: Session = Depends(get_db)
-):
-    """Scrape jobs for multiple companies in bulk (public endpoint - no auth required)."""
-    try:
-        print(f"🚀 Starting public bulk scraping for {len(request.company_names)} companies")
-        
-        # Start the scraping process
-        scraping_run = await job_scraper.bulk_scrape_companies(request, db)
-        
-        return ScrapingRunResponse.from_orm(scraping_run)
-        
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error during bulk scraping: {str(e)}"
-        )
-
 @app.get("/admin/scraping-runs")
 async def get_scraping_runs(
     limit: int = Query(20, ge=1, le=100),
@@ -1873,71 +1853,6 @@ async def get_database_stats(
             status_code=500,
             detail=f"Error getting database stats: {str(e)}"
         )
-
-@app.get("/database-stats-public")
-async def get_database_stats_public(db: Session = Depends(get_db)):
-    """Get database statistics (public endpoint - no auth required)."""
-    try:
-        # Count jobs by status
-        total_jobs = db.query(ScrapedJob).filter(ScrapedJob.is_active == True).count()
-        jobs_last_30_days = db.query(ScrapedJob).filter(
-            ScrapedJob.is_active == True,
-            ScrapedJob.date_scraped >= datetime.now() - timedelta(days=30)
-        ).count()
-        
-        # Count companies
-        total_companies = db.query(TargetCompany).filter(TargetCompany.is_active == True).count()
-        
-        # Count scraping runs
-        total_runs = db.query(ScrapingRun).count()
-        successful_runs = db.query(ScrapingRun).filter(ScrapingRun.status == "completed").count()
-        
-        # Top companies by job count
-        from sqlalchemy import func
-        top_companies = db.query(
-            ScrapedJob.company,
-            func.count(ScrapedJob.id).label('job_count')
-        ).filter(
-            ScrapedJob.is_active == True
-        ).group_by(ScrapedJob.company).order_by(
-            func.count(ScrapedJob.id).desc()
-        ).limit(10).all()
-        
-        return {
-            "success": True,
-            "stats": {
-                "total_jobs": total_jobs,
-                "jobs_last_30_days": jobs_last_30_days,
-                "total_companies": total_companies,
-                "total_scraping_runs": total_runs,
-                "successful_runs": successful_runs,
-                "success_rate": round((successful_runs / total_runs * 100) if total_runs > 0 else 0, 2),
-                "top_companies": [
-                    {"company": company, "job_count": count}
-                    for company, count in top_companies
-                ]
-            },
-            "timestamp": datetime.now().isoformat()
-        }
-        
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error getting database stats: {str(e)}"
-        )
-
-@app.get("/target-companies-public")
-async def get_target_companies_public(db: Session = Depends(get_db)):
-    """Get all target companies (public endpoint - no auth required)."""
-    companies = db.query(TargetCompany).filter(
-        TargetCompany.is_active == True
-    ).order_by(TargetCompany.name).all()
-    
-    return {
-        "success": True,
-        "companies": [TargetCompanyResponse.from_orm(company) for company in companies],
-        "total_count": len(companies)
-    }
 
 @app.get("/health")
 async def health_check():

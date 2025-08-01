@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Backend Connectivity Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .test-container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .test-result {
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .success { background: #d4edda; border: 1px solid #c3e6cb; color: #155724; }
+        .error { background: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; }
+        .loading { background: #d1ecf1; border: 1px solid #bee5eb; color: #0c5460; }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background: #0056b3; }
+        button:disabled { 
+            background: #6c757d; 
+            cursor: not-allowed;
+        }
+        .endpoint-test {
+            border-left: 4px solid #007bff;
+            padding-left: 15px;
+            margin: 15px 0;
+        }
+        pre {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔧 Backend Connectivity Test</h1>
+    
+    <div class="test-container">
+        <h2>Backend Server Status</h2>
+        <button onclick="testBackendHealth()">Test Backend Health</button>
+        <div id="health-result"></div>
+    </div>
+
+    <div class="test-container">
+        <h2>API Endpoints Test</h2>
+        <button onclick="testAllEndpoints()">Test All Endpoints</button>
+        <button onclick="clearResults()">Clear Results</button>
+        <div id="endpoints-result"></div>
+    </div>
+
+    <div class="test-container">
+        <h2>Job Search Test (Public)</h2>
+        <button onclick="testJobSearch()">Test Job Search</button>
+        <div id="search-result"></div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8000';
+
+        function showResult(elementId, message, type = 'success') {
+            const element = document.getElementById(elementId);
+            element.innerHTML = `<div class="test-result ${type}">${message}</div>`;
+        }
+
+        function showLoading(elementId, message) {
+            showResult(elementId, `⏳ ${message}`, 'loading');
+        }
+
+        async function testBackendHealth() {
+            showLoading('health-result', 'Testing backend health...');
+            
+            try {
+                const response = await fetch(`${API_BASE}/health`);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showResult('health-result', 
+                        `✅ Backend is healthy!<br>
+                        Status: ${data.status}<br>
+                        Timestamp: ${data.timestamp}`, 'success');
+                } else {
+                    showResult('health-result', 
+                        `❌ Backend responded with error: ${response.status}`, 'error');
+                }
+            } catch (error) {
+                showResult('health-result', 
+                    `❌ Cannot connect to backend: ${error.message}<br>
+                    Make sure the backend is running on port 8000`, 'error');
+            }
+        }
+
+        async function testAllEndpoints() {
+            showLoading('endpoints-result', 'Testing API endpoints...');
+            
+            const endpoints = [
+                { path: '/', name: 'Root API Info' },
+                { path: '/health', name: 'Health Check' },
+                { path: '/supported-sites', name: 'Supported Job Sites' },
+                { path: '/supported-countries', name: 'Supported Countries' }
+            ];
+
+            let results = '<h3>Endpoint Tests:</h3>';
+            
+            for (const endpoint of endpoints) {
+                try {
+                    const response = await fetch(`${API_BASE}${endpoint.path}`);
+                    const data = await response.json();
+                    
+                    if (response.ok) {
+                        results += `
+                            <div class="endpoint-test">
+                                <strong>✅ ${endpoint.name}</strong><br>
+                                <small>GET ${endpoint.path} - Status: ${response.status}</small>
+                                <pre>${JSON.stringify(data, null, 2).substring(0, 300)}...</pre>
+                            </div>`;
+                    } else {
+                        results += `
+                            <div class="endpoint-test">
+                                <strong>❌ ${endpoint.name}</strong><br>
+                                <small>GET ${endpoint.path} - Error: ${response.status}</small>
+                            </div>`;
+                    }
+                } catch (error) {
+                    results += `
+                        <div class="endpoint-test">
+                            <strong>❌ ${endpoint.name}</strong><br>
+                            <small>GET ${endpoint.path} - Error: ${error.message}</small>
+                        </div>`;
+                }
+            }
+            
+            document.getElementById('endpoints-result').innerHTML = results;
+        }
+
+        async function testJobSearch() {
+            showLoading('search-result', 'Testing job search functionality...');
+            
+            const searchData = {
+                search_term: "software engineer",
+                location: "USA",
+                site_name: ["indeed"],
+                results_wanted: 5
+            };
+
+            try {
+                const response = await fetch(`${API_BASE}/search-jobs-public`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(searchData)
+                });
+
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showResult('search-result', 
+                        `✅ Job search successful!<br>
+                        Found: ${data.job_count} jobs<br>
+                        Message: ${data.message}<br>
+                        <strong>Sample Job Titles:</strong><br>
+                        ${data.jobs ? data.jobs.slice(0, 3).map(job => 
+                            `• ${job.title} at ${job.company}`
+                        ).join('<br>') : 'No jobs in response'}`, 'success');
+                } else {
+                    showResult('search-result', 
+                        `❌ Job search failed: ${data.detail || response.status}`, 'error');
+                }
+            } catch (error) {
+                showResult('search-result', 
+                    `❌ Job search error: ${error.message}`, 'error');
+            }
+        }
+
+        function clearResults() {
+            document.getElementById('endpoints-result').innerHTML = '';
+            document.getElementById('search-result').innerHTML = '';
+            document.getElementById('health-result').innerHTML = '';
+        }
+
+        // Auto-test health on page load
+        window.onload = function() {
+            testBackendHealth();
+        };
+    </script>
+</body>
+</html>
