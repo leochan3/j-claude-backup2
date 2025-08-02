@@ -10,7 +10,13 @@
       "Bash(git add:*)",
       "Bash(rm:*)",
       "Bash(wc:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(cat:*)",
+      "Bash(ls:*)",
+      "Bash(pkill:*)",
+      "Bash(true)",
+      "Bash(kill:*)",
+      "Bash(echo)"
     ],
     "deny": []
   }

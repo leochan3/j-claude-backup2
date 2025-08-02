@@ -1,6 +1,6 @@
 # 🛠️ Admin Interfaces Guide
 
-Your JobSpy application now has **3 fully functional frontend interfaces**:
+Your JobSpy application now has **4 fully functional frontend interfaces**:
 
 ## 🔍 **Main Job Search Interface**
 - **File**: `frontend/index.html`
@@ -25,6 +25,17 @@ Your JobSpy application now has **3 fully functional frontend interfaces**:
   - Real-time scraping progress
   - Results summary
 
+## 👥 **User Management (Admin)**
+- **File**: `user_management.html`
+- **Purpose**: Monitor and manage registered users
+- **Features**:
+  - View all registered users and their information
+  - User statistics (total, active, recent registrations)
+  - Detailed user profiles with activity history
+  - Saved jobs tracking and categorization
+  - Search history and saved searches monitoring
+  - Most active users analytics
+
 ---
 
 ## 🚀 Quick Setup
@@ -44,6 +55,7 @@ python setup_sample_companies.py
 - **Main Job Search**: `frontend/index.html`
 - **Database Viewer**: `database_viewer.html`
 - **Scraping Interface**: `scraping_interface.html`
+- **User Management**: `user_management.html`
 - **Test Dashboard**: `test_admin_frontends.html`
 
 ---
@@ -60,6 +72,9 @@ POST /search-jobs-local-public  - Search local database
 GET  /database-stats-public     - Database statistics (for admin UI)
 GET  /target-companies-public   - Get companies (for admin UI)
 POST /scrape-bulk-public        - Bulk scraping (for admin UI)
+GET  /admin/users-public        - Get all users (for admin UI)
+GET  /admin/user-details-public/{user_id} - Get user details (for admin UI)
+GET  /admin/users-stats-public  - Get user statistics (for admin UI)
 ```
 
 ### **Authenticated Endpoints** (Require Login)

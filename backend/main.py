@@ -18,7 +18,7 @@ import asyncio
 from openai import OpenAI
 import uuid
 from sqlalchemy.orm import Session
-from database import create_tables, get_db, User, TargetCompany, ScrapedJob, ScrapingRun
+from database import create_tables, get_db, User, UserPreference, UserSavedJob, SearchHistory, SavedSearch, TargetCompany, ScrapedJob, ScrapingRun
 from models import (
     UserCreate, UserLogin, UserResponse, Token,
     UserPreferencesCreate, UserPreferencesUpdate, UserPreferencesResponse,
@@ -80,7 +80,7 @@ app.add_middleware(
 try:
     # Mount static files for frontend
     app.mount("/static", StaticFiles(directory="../frontend"), name="static")
-    app.mount("/admin", StaticFiles(directory="../"), name="admin")
+    app.mount("/files", StaticFiles(directory="../"), name="files")
     print("✅ Static file serving enabled")
 except Exception as e:
     print(f"⚠️  Static files not available: {e}")
@@ -109,6 +109,14 @@ async def serve_scraping_interface():
         return FileResponse("../scraping_interface.html")
     except:
         return {"message": "Scraping interface not available", "api_docs": "/docs"}
+
+@app.get("/user-management")
+async def serve_user_management():
+    """Serve the user management admin interface"""
+    try:
+        return FileResponse("../user_management.html")
+    except:
+        return {"message": "User management interface not available", "api_docs": "/docs"}
 
 # Saved Jobs Storage Management
 SAVED_JOBS_FILE = "saved_jobs.json"
@@ -330,7 +338,8 @@ async def root():
         "frontends": [
             "/app - Main Job Search Interface",
             "/database-viewer - Database Viewer (Admin)",
-            "/scraping-interface - Job Scraping Interface (Admin)"
+            "/scraping-interface - Job Scraping Interface (Admin)",
+            "/user-management - User Management (Admin)"
         ],
         "endpoints": [
             "/docs - API documentation",
@@ -421,6 +430,204 @@ async def login_user(user_login: UserLogin, db: Session = Depends(get_db)):
 async def get_current_user_info(current_user: User = Depends(get_current_active_user)):
     """Get current user information"""
     return UserResponse.from_orm(current_user)
+
+# Admin User Management Endpoints (Public for admin interfaces)
+@app.get("/admin/users-public")
+async def get_all_users_public(db: Session = Depends(get_db)):
+    """Get all users without authentication (for admin frontend)"""
+    try:
+        users = db.query(User).order_by(User.created_at.desc()).all()
+        
+        user_list = []
+        for user in users:
+            # Get user statistics
+            saved_jobs_count = db.query(UserSavedJob).filter(UserSavedJob.user_id == user.id).count()
+            search_history_count = db.query(SearchHistory).filter(SearchHistory.user_id == user.id).count()
+            saved_searches_count = db.query(SavedSearch).filter(SavedSearch.user_id == user.id).count()
+            
+            user_info = {
+                "id": user.id,
+                "username": user.username,
+                "email": user.email,
+                "full_name": user.full_name,
+                "is_active": user.is_active,
+                "created_at": user.created_at.isoformat() if user.created_at else None,
+                "updated_at": user.updated_at.isoformat() if user.updated_at else None,
+                "stats": {
+                    "saved_jobs_count": saved_jobs_count,
+                    "search_history_count": search_history_count,
+                    "saved_searches_count": saved_searches_count
+                }
+            }
+            user_list.append(user_info)
+        
+        return {
+            "success": True,
+            "users": user_list,
+            "total_count": len(user_list),
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error getting users: {str(e)}"
+        )
+
+@app.get("/admin/user-details-public/{user_id}")
+async def get_user_details_public(user_id: str, db: Session = Depends(get_db)):
+    """Get detailed user information without authentication (for admin frontend)"""
+    try:
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        # Get user preferences
+        preferences = db.query(UserPreference).filter(UserPreference.user_id == user_id).first()
+        
+        # Get saved jobs with categories
+        saved_jobs = db.query(UserSavedJob).filter(UserSavedJob.user_id == user_id).all()
+        saved_jobs_by_status = {
+            "pending": [job for job in saved_jobs if not any([job.applied, job.save_for_later, job.not_interested])],
+            "applied": [job for job in saved_jobs if job.applied],
+            "save_for_later": [job for job in saved_jobs if job.save_for_later],
+            "not_interested": [job for job in saved_jobs if job.not_interested]
+        }
+        
+        # Get recent search history (last 10)
+        recent_searches = db.query(SearchHistory).filter(
+            SearchHistory.user_id == user_id
+        ).order_by(SearchHistory.searched_at.desc()).limit(10).all()
+        
+        # Get saved searches
+        saved_searches = db.query(SavedSearch).filter(SavedSearch.user_id == user_id).all()
+        
+        user_details = {
+            "user": {
+                "id": user.id,
+                "username": user.username,
+                "email": user.email,
+                "full_name": user.full_name,
+                "is_active": user.is_active,
+                "created_at": user.created_at.isoformat() if user.created_at else None,
+                "updated_at": user.updated_at.isoformat() if user.updated_at else None
+            },
+            "preferences": {
+                "default_sites": preferences.default_sites if preferences else ["indeed"],
+                "default_location": preferences.default_location if preferences else "USA",
+                "default_job_type": preferences.default_job_type if preferences else None,
+                "default_remote": preferences.default_remote if preferences else None,
+                "min_salary": preferences.min_salary if preferences else None,
+                "max_salary": preferences.max_salary if preferences else None
+            } if preferences else None,
+            "saved_jobs": {
+                "total": len(saved_jobs),
+                "by_status": {
+                    "pending": len(saved_jobs_by_status["pending"]),
+                    "applied": len(saved_jobs_by_status["applied"]),
+                    "save_for_later": len(saved_jobs_by_status["save_for_later"]),
+                    "not_interested": len(saved_jobs_by_status["not_interested"])
+                },
+                "recent_jobs": [
+                    {
+                        "id": job.id,
+                        "job_title": job.job_data.get("title", "N/A"),
+                        "job_company": job.job_data.get("company", "N/A"),
+                        "saved_at": job.saved_at.isoformat() if job.saved_at else None,
+                        "applied": job.applied,
+                        "save_for_later": job.save_for_later,
+                        "not_interested": job.not_interested
+                    } for job in saved_jobs[-5:]  # Last 5 saved jobs
+                ]
+            },
+            "search_activity": {
+                "total_searches": len(recent_searches),
+                "recent_searches": [
+                    {
+                        "search_term": search.search_term,
+                        "location": search.location,
+                        "results_count": search.results_count,
+                        "searched_at": search.searched_at.isoformat() if search.searched_at else None
+                    } for search in recent_searches
+                ]
+            },
+            "saved_searches": {
+                "total": len(saved_searches),
+                "searches": [
+                    {
+                        "id": search.id,
+                        "name": search.name,
+                        "search_term": search.search_term,
+                        "location": search.location,
+                        "is_alert_active": search.is_alert_active,
+                        "created_at": search.created_at.isoformat() if search.created_at else None
+                    } for search in saved_searches
+                ]
+            }
+        }
+        
+        return {
+            "success": True,
+            "user_details": user_details,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error getting user details: {str(e)}"
+        )
+
+@app.get("/admin/users-stats-public")
+async def get_users_stats_public(db: Session = Depends(get_db)):
+    """Get user statistics without authentication (for admin frontend)"""
+    try:
+        # Total users
+        total_users = db.query(User).count()
+        active_users = db.query(User).filter(User.is_active == True).count()
+        
+        # Recent registrations (last 30 days)
+        thirty_days_ago = datetime.now() - timedelta(days=30)
+        recent_registrations = db.query(User).filter(
+            User.created_at >= thirty_days_ago
+        ).count()
+        
+        # User activity stats
+        users_with_saved_jobs = db.query(UserSavedJob.user_id).distinct().count()
+        users_with_search_history = db.query(SearchHistory.user_id).distinct().count()
+        
+        # Most active users (by saved jobs)
+        from sqlalchemy import func
+        most_active_users = db.query(
+            User.username,
+            func.count(UserSavedJob.id).label('saved_jobs_count')
+        ).join(UserSavedJob, User.id == UserSavedJob.user_id).group_by(
+            User.id, User.username
+        ).order_by(func.count(UserSavedJob.id).desc()).limit(5).all()
+        
+        return {
+            "success": True,
+            "stats": {
+                "total_users": total_users,
+                "active_users": active_users,
+                "recent_registrations": recent_registrations,
+                "users_with_saved_jobs": users_with_saved_jobs,
+                "users_with_search_history": users_with_search_history,
+                "most_active_users": [
+                    {"username": username, "saved_jobs_count": count}
+                    for username, count in most_active_users
+                ]
+            },
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error getting user stats: {str(e)}"
+        )
 
 # User Preferences Endpoints
 @app.get("/user/preferences", response_model=UserPreferencesResponse)
