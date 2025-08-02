@@ -2,8 +2,11 @@
 """
 Database migration script to add new columns to user_preferences table
 """
+from database import create_tables, engine
 import sqlite3
 import os
+from datetime import datetime
+from sqlalchemy import text
 
 DATABASE_PATH = "jobsearch.db"
 
@@ -69,7 +72,27 @@ def migrate_database():
     finally:
         conn.close()
 
+def add_missing_columns():
+    """Add missing columns to existing tables."""
+    try:
+        # Check if default_exclude_keywords column exists in user_preferences
+        with engine.connect() as conn:
+            result = conn.execute(text("PRAGMA table_info(user_preferences)"))
+            columns = [row[1] for row in result]
+            
+            if 'default_exclude_keywords' not in columns:
+                print("Adding default_exclude_keywords column to user_preferences table...")
+                conn.execute(text("ALTER TABLE user_preferences ADD COLUMN default_exclude_keywords VARCHAR"))
+                conn.commit()
+                print("✅ Added default_exclude_keywords column")
+            else:
+                print("✅ default_exclude_keywords column already exists")
+                
+    except Exception as e:
+        print(f"Error adding missing columns: {e}")
+
 if __name__ == "__main__":
-    print("🔄 Starting database migration...")
-    migrate_database()
-    print("✅ Migration complete!")
+    print("Running database migrations...")
+    create_tables()
+    add_missing_columns()
+    print("✅ Database migrations completed!")

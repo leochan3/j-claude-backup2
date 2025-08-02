@@ -1725,7 +1725,7 @@
 
     <script>
         // Detect if we're serving from backend or opening file directly
-        const API_BASE_URL = 'https://j-claude-backup2-1.onrender.com';
+        const API_BASE_URL = 'http://localhost:8000';
         
         // Authentication state management
         let currentUser = null;
@@ -2015,7 +2015,12 @@
                 const response = await fetch(`${API_BASE_URL}/auth/register`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username: email, email, password })
+                    body: JSON.stringify({ 
+                        username: email, 
+                        email, 
+                        password,
+                        full_name: email.split('@')[0] // Use part before @ as full name
+                    })
                 });
 
                 const result = await response.json();
