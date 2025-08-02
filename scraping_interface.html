@@ -153,8 +153,11 @@ Remote</textarea>
             results.textContent = `🚀 Starting scraping for ${companies.length} companies...\nThis may take several minutes...`;
             
             try {
-                // Make API call
-                const response = await fetch('https://j-claude-backup2-1.onrender.com/scrape-bulk-public', {
+                // Make API call - use local API when running locally
+                const apiBase = window.location.hostname === 'localhost' 
+                    ? 'http://localhost:8000' 
+                    : `https://${window.location.hostname}`;
+                const response = await fetch(`${apiBase}/scrape-bulk-public`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
