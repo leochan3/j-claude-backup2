@@ -118,6 +118,14 @@ async def serve_user_management():
     except:
         return {"message": "User management interface not available", "api_docs": "/docs"}
 
+@app.get("/test-dashboard")
+async def serve_test_dashboard():
+    """Serve the comprehensive test dashboard"""
+    try:
+        return FileResponse("../comprehensive_test_dashboard.html")
+    except:
+        return {"message": "Test dashboard not available", "api_docs": "/docs"}
+
 # Saved Jobs Storage Management
 SAVED_JOBS_FILE = "saved_jobs.json"
 
@@ -339,7 +347,8 @@ async def root():
             "/app - Main Job Search Interface",
             "/database-viewer - Database Viewer (Admin)",
             "/scraping-interface - Job Scraping Interface (Admin)",
-            "/user-management - User Management (Admin)"
+            "/user-management - User Management (Admin)",
+            "/test-dashboard - Comprehensive Test Dashboard"
         ],
         "endpoints": [
             "/docs - API documentation",

@@ -1,0 +1,842 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JobSpy Test Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .dashboard {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+        
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+        
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .card {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.2);
+            transition: transform 0.3s ease;
+        }
+        
+        .card:hover {
+            transform: translateY(-5px);
+        }
+        
+        .card-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+        
+        .card-icon {
+            font-size: 2rem;
+            margin-right: 15px;
+        }
+        
+        .card-title {
+            font-size: 1.3rem;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .btn {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            margin: 5px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        
+        .btn.secondary {
+            background: #6c757d;
+        }
+        
+        .btn.danger {
+            background: linear-gradient(45deg, #dc3545, #c82333);
+        }
+        
+        .result {
+            margin: 15px 0;
+            padding: 15px;
+            border-radius: 8px;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        
+        .result.success {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        
+        .result.error {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        
+        .result.loading {
+            background: #d1ecf1;
+            border: 1px solid #bee5eb;
+            color: #0c5460;
+        }
+        
+        .result.warning {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            color: #856404;
+        }
+        
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .status-ok { background: #28a745; }
+        .status-error { background: #dc3545; }
+        .status-loading { background: #ffc107; }
+        .status-warning { background: #fd7e14; }
+        
+        .nav-links {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            justify-content: center;
+            margin-bottom: 30px;
+        }
+        
+        .nav-link {
+            background: rgba(255,255,255,0.15);
+            color: white;
+            text-decoration: none;
+            padding: 12px 20px;
+            border-radius: 25px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.2);
+            transition: all 0.3s ease;
+            font-weight: 500;
+        }
+        
+        .nav-link:hover {
+            background: rgba(255,255,255,0.25);
+            transform: translateY(-2px);
+        }
+        
+        .endpoint-test {
+            background: #f8f9fa;
+            border-left: 4px solid #007bff;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        
+        .endpoint-test.success {
+            border-left-color: #28a745;
+        }
+        
+        .endpoint-test.error {
+            border-left-color: #dc3545;
+        }
+        
+        pre {
+            background: #2d3748;
+            color: #e2e8f0;
+            padding: 15px;
+            border-radius: 8px;
+            overflow-x: auto;
+            font-size: 12px;
+            margin: 10px 0;
+            white-space: pre-wrap;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        
+        .stat-item {
+            text-align: center;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        
+        .stat-number {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #007bff;
+        }
+        
+        .stat-label {
+            font-size: 0.9rem;
+            color: #6c757d;
+            margin-top: 5px;
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e9ecef;
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            border-radius: 4px;
+            transition: width 0.3s ease;
+        }
+        
+        @media (max-width: 768px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .nav-links {
+                flex-direction: column;
+                align-items: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard">
+        <div class="header">
+            <h1>🚀 JobSpy Test Dashboard</h1>
+            <p>Comprehensive testing interface for all JobSpy components</p>
+        </div>
+
+        <div class="nav-links">
+            <a href="database_viewer.html" class="nav-link" target="_blank">📊 Database Viewer</a>
+            <a href="scraping_interface.html" class="nav-link" target="_blank">🤖 Scraping Interface</a>
+            <a href="user_management.html" class="nav-link" target="_blank">👥 User Management</a>
+            <a href="frontend/index.html" class="nav-link" target="_blank">🔍 Main Job Search</a>
+            <a href="http://localhost:8000/docs" class="nav-link" target="_blank">📚 API Docs</a>
+        </div>
+
+        <div class="grid">
+            <!-- Backend Health Card -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-icon">❤️</div>
+                    <div class="card-title">Backend Health</div>
+                </div>
+                <button class="btn" onclick="testBackendHealth()">
+                    <span>🔍</span> Test Health
+                </button>
+                <button class="btn secondary" onclick="testEnvironmentInfo()">
+                    <span>ℹ️</span> Environment Info
+                </button>
+                <div id="health-result"></div>
+            </div>
+
+            <!-- API Endpoints Card -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-icon">🔌</div>
+                    <div class="card-title">API Endpoints</div>
+                </div>
+                <button class="btn" onclick="testAllEndpoints()">
+                    <span>🧪</span> Test All Endpoints
+                </button>
+                <button class="btn secondary" onclick="testPublicEndpoints()">
+                    <span>🌐</span> Public Only
+                </button>
+                <div id="endpoints-result"></div>
+            </div>
+
+            <!-- Admin Functions Card -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-icon">⚙️</div>
+                    <div class="card-title">Admin Functions</div>
+                </div>
+                <button class="btn" onclick="testAdminEndpoints()">
+                    <span>🔐</span> Test Admin APIs
+                </button>
+                <button class="btn secondary" onclick="testDatabaseStats()">
+                    <span>📊</span> Database Stats
+                </button>
+                <div id="admin-result"></div>
+            </div>
+
+            <!-- Job Search Card -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-icon">🔍</div>
+                    <div class="card-title">Job Search</div>
+                </div>
+                <button class="btn" onclick="testJobSearch()">
+                    <span>🎯</span> Test Search
+                </button>
+                <button class="btn secondary" onclick="testLocalJobSearch()">
+                    <span>💾</span> Local Search
+                </button>
+                <div id="search-result"></div>
+            </div>
+
+            <!-- User System Card -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-icon">👤</div>
+                    <div class="card-title">User System</div>
+                </div>
+                <button class="btn" onclick="testUserSystem()">
+                    <span>🔐</span> Test Auth
+                </button>
+                <button class="btn secondary" onclick="testUserStats()">
+                    <span>📈</span> User Stats
+                </button>
+                <div id="user-result"></div>
+            </div>
+
+            <!-- Performance Card -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-icon">⚡</div>
+                    <div class="card-title">Performance</div>
+                </div>
+                <button class="btn" onclick="runPerformanceTests()">
+                    <span>🏃</span> Run Tests
+                </button>
+                <button class="btn danger" onclick="clearAllResults()">
+                    <span>🗑️</span> Clear All
+                </button>
+                <div id="performance-result"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Auto-detect environment
+        const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+        const API_BASE = isLocalhost ? 'http://localhost:8000' : 'https://j-claude-backup2-1.onrender.com';
+        
+        console.log(`🌍 Environment: ${isLocalhost ? 'Local' : 'Production'}`);
+        console.log(`🔗 API Base: ${API_BASE}`);
+
+        // Global test state
+        let testStats = {
+            total: 0,
+            passed: 0,
+            failed: 0,
+            startTime: null
+        };
+
+        function showResult(elementId, message, type = 'success') {
+            const element = document.getElementById(elementId);
+            const statusIcon = type === 'success' ? '✅' : type === 'error' ? '❌' : type === 'loading' ? '⏳' : '⚠️';
+            element.innerHTML = `<div class="result ${type}">${statusIcon} ${message}</div>`;
+        }
+
+        function appendResult(elementId, message, type = 'success') {
+            const element = document.getElementById(elementId);
+            const statusIcon = type === 'success' ? '✅' : type === 'error' ? '❌' : '⚠️';
+            element.innerHTML += `<div class="result ${type}">${statusIcon} ${message}</div>`;
+        }
+
+        function showLoading(elementId, message) {
+            showResult(elementId, message, 'loading');
+        }
+
+        function updateTestStats(passed = false) {
+            testStats.total++;
+            if (passed) testStats.passed++;
+            else testStats.failed++;
+        }
+
+        async function testBackendHealth() {
+            showLoading('health-result', 'Testing backend health...');
+            
+            try {
+                const startTime = Date.now();
+                const response = await fetch(`${API_BASE}/health`);
+                const responseTime = Date.now() - startTime;
+                const data = await response.json();
+                
+                if (response.ok) {
+                    updateTestStats(true);
+                    showResult('health-result', 
+                        `Backend is healthy! 🎉<br>
+                        <strong>Status:</strong> ${data.status}<br>
+                        <strong>Response Time:</strong> ${responseTime}ms<br>
+                        <strong>Environment:</strong> ${isLocalhost ? 'Local Development' : 'Production'}<br>
+                        <strong>Timestamp:</strong> ${data.timestamp}`, 'success');
+                } else {
+                    updateTestStats(false);
+                    showResult('health-result', 
+                        `Backend responded with error: ${response.status}`, 'error');
+                }
+            } catch (error) {
+                updateTestStats(false);
+                showResult('health-result', 
+                    `Cannot connect to backend: ${error.message}<br>
+                    <strong>API Base:</strong> ${API_BASE}<br>
+                    Make sure the backend is running!`, 'error');
+            }
+        }
+
+        async function testEnvironmentInfo() {
+            showLoading('health-result', 'Getting environment info...');
+            
+            try {
+                const response = await fetch(`${API_BASE}/`);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    const frontends = data.frontends || [];
+                    const endpoints = data.endpoints || [];
+                    
+                    showResult('health-result', 
+                        `Environment Information:<br>
+                        <strong>API Base:</strong> ${API_BASE}<br>
+                        <strong>Available Frontends:</strong> ${frontends.length}<br>
+                        <strong>Available Endpoints:</strong> ${endpoints.length}<br>
+                        <strong>Message:</strong> ${data.message || 'N/A'}`, 'success');
+                } else {
+                    showResult('health-result', 'Failed to get environment info', 'error');
+                }
+            } catch (error) {
+                showResult('health-result', `Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function testAllEndpoints() {
+            showLoading('endpoints-result', 'Testing all API endpoints...');
+            
+            const endpoints = [
+                { path: '/', name: 'Root API Info', type: 'GET' },
+                { path: '/health', name: 'Health Check', type: 'GET' },
+                { path: '/supported-sites', name: 'Supported Job Sites', type: 'GET' },
+                { path: '/supported-countries', name: 'Supported Countries', type: 'GET' },
+                { path: '/database-stats-public', name: 'Database Stats', type: 'GET' },
+                { path: '/target-companies-public', name: 'Target Companies', type: 'GET' }
+            ];
+
+            let results = '<div class="stats-grid"><div class="stat-item"><div class="stat-number">0</div><div class="stat-label">Tested</div></div></div>';
+            document.getElementById('endpoints-result').innerHTML = results;
+            
+            let passed = 0, failed = 0;
+            
+            for (let i = 0; i < endpoints.length; i++) {
+                const endpoint = endpoints[i];
+                try {
+                    const startTime = Date.now();
+                    const response = await fetch(`${API_BASE}${endpoint.path}`);
+                    const responseTime = Date.now() - startTime;
+                    
+                    const statusClass = response.ok ? 'success' : 'error';
+                    const statusIcon = response.ok ? '✅' : '❌';
+                    
+                    if (response.ok) passed++;
+                    else failed++;
+                    
+                    results += `
+                        <div class="endpoint-test ${statusClass}">
+                            <strong>${statusIcon} ${endpoint.name}</strong><br>
+                            <small>${endpoint.type} ${endpoint.path} - ${response.status} (${responseTime}ms)</small>
+                        </div>`;
+                    
+                    // Update progress
+                    const progress = ((i + 1) / endpoints.length) * 100;
+                    const statsHtml = `
+                        <div class="stats-grid">
+                            <div class="stat-item">
+                                <div class="stat-number">${i + 1}</div>
+                                <div class="stat-label">Tested</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-number">${passed}</div>
+                                <div class="stat-label">Passed</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-number">${failed}</div>
+                                <div class="stat-label">Failed</div>
+                            </div>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress-fill" style="width: ${progress}%"></div>
+                        </div>
+                    `;
+                    
+                    document.getElementById('endpoints-result').innerHTML = statsHtml + results;
+                    
+                } catch (error) {
+                    failed++;
+                    results += `
+                        <div class="endpoint-test error">
+                            <strong>❌ ${endpoint.name}</strong><br>
+                            <small>${endpoint.type} ${endpoint.path} - Error: ${error.message}</small>
+                        </div>`;
+                }
+                
+                // Small delay to show progress
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
+        }
+
+        async function testPublicEndpoints() {
+            showLoading('endpoints-result', 'Testing public endpoints only...');
+            
+            const publicEndpoints = [
+                '/health',
+                '/supported-sites', 
+                '/supported-countries',
+                '/database-stats-public',
+                '/target-companies-public'
+            ];
+            
+            let results = '';
+            for (const endpoint of publicEndpoints) {
+                try {
+                    const response = await fetch(`${API_BASE}${endpoint}`);
+                    const status = response.ok ? '✅' : '❌';
+                    results += `${status} ${endpoint} (${response.status})<br>`;
+                } catch (error) {
+                    results += `❌ ${endpoint} (Error)<br>`;
+                }
+            }
+            
+            showResult('endpoints-result', results, 'success');
+        }
+
+        async function testAdminEndpoints() {
+            showLoading('admin-result', 'Testing admin endpoints...');
+            
+            const adminEndpoints = [
+                '/admin/users-public',
+                '/admin/users-stats-public'
+            ];
+            
+            let results = '';
+            for (const endpoint of adminEndpoints) {
+                try {
+                    const response = await fetch(`${API_BASE}${endpoint}`);
+                    const data = await response.json();
+                    const status = response.ok ? '✅' : '❌';
+                    
+                    if (response.ok) {
+                        results += `${status} ${endpoint}<br>`;
+                        if (endpoint.includes('users-stats')) {
+                            results += `&nbsp;&nbsp;👥 Total Users: ${data.stats?.total_users || 0}<br>`;
+                            results += `&nbsp;&nbsp;📊 Active Users: ${data.stats?.active_users || 0}<br>`;
+                        }
+                    } else {
+                        results += `${status} ${endpoint} (${response.status})<br>`;
+                    }
+                } catch (error) {
+                    results += `❌ ${endpoint} (${error.message})<br>`;
+                }
+            }
+            
+            showResult('admin-result', results, 'success');
+        }
+
+        async function testDatabaseStats() {
+            showLoading('admin-result', 'Getting database statistics...');
+            
+            try {
+                const response = await fetch(`${API_BASE}/database-stats-public`);
+                const data = await response.json();
+                
+                if (response.ok && data.success) {
+                    const stats = data.stats;
+                    const topCompanies = stats.top_companies?.slice(0, 3) || [];
+                    
+                    const statsHtml = `
+                        <div class="stats-grid">
+                            <div class="stat-item">
+                                <div class="stat-number">${stats.total_jobs || 0}</div>
+                                <div class="stat-label">Total Jobs</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-number">${stats.total_companies || 0}</div>
+                                <div class="stat-label">Companies</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-number">${stats.success_rate || 0}%</div>
+                                <div class="stat-label">Success Rate</div>
+                            </div>
+                        </div>
+                        <strong>Top Companies:</strong><br>
+                        ${topCompanies.map(c => `• ${c.company}: ${c.job_count} jobs`).join('<br>')}
+                    `;
+                    
+                    showResult('admin-result', statsHtml, 'success');
+                } else {
+                    showResult('admin-result', 'Failed to get database stats', 'error');
+                }
+            } catch (error) {
+                showResult('admin-result', `Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function testJobSearch() {
+            showLoading('search-result', 'Testing job search functionality...');
+            
+            const searchData = {
+                search_term: "software engineer",
+                location: "USA",
+                site_name: ["indeed"],
+                results_wanted: 5
+            };
+
+            try {
+                const startTime = Date.now();
+                const response = await fetch(`${API_BASE}/search-jobs-public`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(searchData)
+                });
+                const responseTime = Date.now() - startTime;
+
+                const data = await response.json();
+                
+                if (response.ok) {
+                    const sampleJobs = data.jobs?.slice(0, 3) || [];
+                    showResult('search-result', 
+                        `Job search successful! 🎉<br>
+                        <strong>Found:</strong> ${data.job_count} jobs<br>
+                        <strong>Response Time:</strong> ${responseTime}ms<br>
+                        <strong>Message:</strong> ${data.message}<br>
+                        <strong>Sample Jobs:</strong><br>
+                        ${sampleJobs.map(job => 
+                            `• ${job.title} at ${job.company}`
+                        ).join('<br>') || 'No jobs returned'}`, 'success');
+                } else {
+                    showResult('search-result', 
+                        `Job search failed: ${data.detail || response.status}`, 'error');
+                }
+            } catch (error) {
+                showResult('search-result', 
+                    `Job search error: ${error.message}`, 'error');
+            }
+        }
+
+        async function testLocalJobSearch() {
+            showLoading('search-result', 'Testing local job search...');
+            
+            const searchData = {
+                search_term: "engineer",
+                location: "USA",
+                limit: 10
+            };
+
+            try {
+                const response = await fetch(`${API_BASE}/search-jobs-local-public`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(searchData)
+                });
+
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showResult('search-result', 
+                        `Local search successful!<br>
+                        <strong>Found:</strong> ${data.jobs?.length || 0} jobs<br>
+                        <strong>Message:</strong> ${data.message}`, 'success');
+                } else {
+                    showResult('search-result', 
+                        `Local search failed: ${data.detail || response.status}`, 'error');
+                }
+            } catch (error) {
+                showResult('search-result', 
+                    `Local search error: ${error.message}`, 'error');
+            }
+        }
+
+        async function testUserSystem() {
+            showLoading('user-result', 'Testing user system...');
+            
+            // Test user registration endpoint
+            const testUser = {
+                username: `testuser_${Date.now()}`,
+                email: `test_${Date.now()}@example.com`,
+                password: "testpass123",
+                full_name: "Test User"
+            };
+
+            try {
+                const response = await fetch(`${API_BASE}/auth/register`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(testUser)
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    showResult('user-result', 
+                        `User registration test successful!<br>
+                        <strong>User ID:</strong> ${data.id}<br>
+                        <strong>Username:</strong> ${data.username}<br>
+                        <strong>Created:</strong> ${data.created_at}`, 'success');
+                } else {
+                    const data = await response.json();
+                    showResult('user-result', 
+                        `Registration test failed: ${data.detail || response.status}`, 'warning');
+                }
+            } catch (error) {
+                showResult('user-result', 
+                    `User system error: ${error.message}`, 'error');
+            }
+        }
+
+        async function testUserStats() {
+            showLoading('user-result', 'Getting user statistics...');
+            
+            try {
+                const response = await fetch(`${API_BASE}/admin/users-stats-public`);
+                const data = await response.json();
+                
+                if (response.ok && data.success) {
+                    const stats = data.stats;
+                    showResult('user-result', 
+                        `User Statistics:<br>
+                        <strong>Total Users:</strong> ${stats.total_users || 0}<br>
+                        <strong>Active Users:</strong> ${stats.active_users || 0}<br>
+                        <strong>New Users (30 days):</strong> ${stats.new_users_30_days || 0}<br>
+                        <strong>Users with Jobs:</strong> ${stats.users_with_saved_jobs || 0}`, 'success');
+                } else {
+                    showResult('user-result', 'Failed to get user stats', 'error');
+                }
+            } catch (error) {
+                showResult('user-result', `Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function runPerformanceTests() {
+            showLoading('performance-result', 'Running performance tests...');
+            
+            const tests = [
+                { name: 'Health Check', endpoint: '/health' },
+                { name: 'API Info', endpoint: '/' },
+                { name: 'Database Stats', endpoint: '/database-stats-public' }
+            ];
+            
+            let results = '';
+            let totalTime = 0;
+            
+            for (const test of tests) {
+                try {
+                    const startTime = Date.now();
+                    const response = await fetch(`${API_BASE}${test.endpoint}`);
+                    const responseTime = Date.now() - startTime;
+                    totalTime += responseTime;
+                    
+                    const status = responseTime < 1000 ? '🟢' : responseTime < 3000 ? '🟡' : '🔴';
+                    results += `${status} ${test.name}: ${responseTime}ms<br>`;
+                } catch (error) {
+                    results += `🔴 ${test.name}: Failed<br>`;
+                }
+            }
+            
+            const avgTime = Math.round(totalTime / tests.length);
+            const performance = avgTime < 500 ? 'Excellent' : avgTime < 1000 ? 'Good' : avgTime < 2000 ? 'Fair' : 'Poor';
+            
+            results += `<br><strong>Average Response Time:</strong> ${avgTime}ms<br>`;
+            results += `<strong>Performance Rating:</strong> ${performance}`;
+            
+            showResult('performance-result', results, 'success');
+        }
+
+        function clearAllResults() {
+            const resultElements = [
+                'health-result', 'endpoints-result', 'admin-result', 
+                'search-result', 'user-result', 'performance-result'
+            ];
+            
+            resultElements.forEach(id => {
+                document.getElementById(id).innerHTML = '';
+            });
+            
+            testStats = { total: 0, passed: 0, failed: 0, startTime: null };
+            
+            showResult('performance-result', 'All results cleared! 🧹', 'success');
+        }
+
+        // Auto-run basic tests on page load
+        window.addEventListener('DOMContentLoaded', function() {
+            console.log('🚀 JobSpy Test Dashboard loaded');
+            console.log(`🌍 Environment: ${isLocalhost ? 'Local Development' : 'Production'}`);
+            
+            // Auto-test health
+            setTimeout(() => {
+                testBackendHealth();
+            }, 500);
+        });
+    </script>
+</body>
+</html>
