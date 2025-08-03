@@ -704,6 +704,37 @@ def filter_jobs_by_company(jobs_df, company_filter):
     print("---------------------------------")
     return filtered_df
 
+def convert_job_search_to_local_search(
+    effective_request: JobSearchRequest,
+    job_titles: List[str] = None,
+    companies: List[str] = None,
+    locations: List[str] = None
+) -> ScrapedJobSearchRequest:
+    """Convert JobSearchRequest to ScrapedJobSearchRequest for local database search."""
+    
+    # Convert hours_old to days_old
+    days_old = None
+    if effective_request.hours_old:
+        days_old = max(1, effective_request.hours_old // 24)  # Convert hours to days, minimum 1 day
+    
+    # Use the first job title if multiple provided, or the original search_term
+    search_term = job_titles[0] if job_titles else effective_request.search_term
+    
+    return ScrapedJobSearchRequest(
+        search_term=search_term if search_term and search_term.strip() else None,
+        company_names=companies if companies else None,
+        locations=locations if locations else None,
+        job_types=[effective_request.job_type] if effective_request.job_type else None,
+        is_remote=effective_request.is_remote,
+        min_salary=None,  # JobSearchRequest doesn't have salary filters
+        max_salary=None,
+        max_experience_years=effective_request.max_years_experience,
+        sites=effective_request.site_name,
+        days_old=days_old or 30,  # Default to 30 days if not specified
+        limit=effective_request.results_wanted or 100,
+        offset=getattr(effective_request, 'offset', 0)
+    )
+
 async def search_single_company(search_term: str, company: str, search_params: dict):
     """Search for jobs for a single company"""
     # Create search term with company
@@ -742,7 +773,7 @@ async def search_jobs(
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    """Search for jobs using JobSpy with user preferences and search history tracking."""
+    """Search for jobs from local database with user preferences and search history tracking."""
     try:
         start_time = time.time()
         
@@ -773,83 +804,55 @@ async def search_jobs(
             companies = [company.strip() for company in effective_request.company_filter.split(',') if company.strip()]
         # Parse multiple locations (comma-separated)
         locations = [loc.strip() for loc in effective_request.location.split(',') if loc.strip()] if effective_request.location else ["USA"]
-        # Prepare base parameters for JobSpy (except location)
-        base_search_params = {
-            "site_name": effective_request.site_name,
-            # location will be set per-iteration
-            "distance": effective_request.distance,
-            "job_type": effective_request.job_type,
-            "is_remote": effective_request.is_remote,
-            "results_wanted": effective_request.results_wanted,
-            "hours_old": effective_request.hours_old,
-            "country_indeed": effective_request.country_indeed,
-            "easy_apply": getattr(effective_request, 'easy_apply', None),
-            "description_format": getattr(effective_request, 'description_format', 'markdown'),
-            "offset": getattr(effective_request, 'offset', 0),
-            "verbose": getattr(effective_request, 'verbose', 2)
-        }
-        base_search_params = {k: v for k, v in base_search_params.items() if v is not None}
-        all_jobs_df = pd.DataFrame()
-        # Nested loops for all combinations
-        if companies:
-            print(f"Multi-company search for {len(companies)} companies: {companies}")
-            for job_title in job_titles:
-                for company in companies:
-                    for location in locations:
-                        company_search_params = base_search_params.copy()
-                        company_search_params["location"] = location
-                        company_jobs_df = await search_single_company(job_title, company, company_search_params)
-                        if not company_jobs_df.empty:
-                            company_jobs_df = company_jobs_df.copy()
-                            company_jobs_df['search_company'] = company
-                            company_jobs_df['search_title'] = job_title
-                            company_jobs_df['search_location'] = location
-                            if all_jobs_df.empty:
-                                all_jobs_df = company_jobs_df
-                            else:
-                                all_jobs_df = pd.concat([all_jobs_df, company_jobs_df], ignore_index=True)
-        else:
-            print("No company filter - searching all companies")
-            for job_title in job_titles:
-                for location in locations:
-                    search_params = base_search_params.copy()
-                    search_params["search_term"] = job_title
-                    search_params["location"] = location
-                    print(f"JobSpy Parameters: {search_params}")
-                    jobs_df = scrape_jobs(**search_params)
-                    if jobs_df is not None and not jobs_df.empty:
-                        jobs_df = jobs_df.copy()
-                        jobs_df['search_title'] = job_title
-                        jobs_df['search_location'] = location
-                        if all_jobs_df.empty:
-                            all_jobs_df = jobs_df
-                        else:
-                            all_jobs_df = pd.concat([all_jobs_df, jobs_df], ignore_index=True)
-        # Remove duplicates based on job_url or title+company+location combination
-        if not all_jobs_df.empty:
-            print(f"Total jobs found across all searches: {len(all_jobs_df)}")
-            original_count = len(all_jobs_df)
-            all_jobs_df = all_jobs_df.drop_duplicates(subset=['job_url'], keep='first')
-            if len(all_jobs_df) < original_count:
-                print(f"Removed {original_count - len(all_jobs_df)} duplicate jobs based on URL")
-        else:
-            print("No jobs found")
-        # Convert DataFrame to list of dictionaries
-        if not all_jobs_df.empty:
-            jobs_list = all_jobs_df.to_dict('records')
-            for job in jobs_list:
-                for key, value in job.items():
-                    if pd.isna(value):
-                        job[key] = None
-            # Filter by max_years_experience if set
-            if effective_request.max_years_experience is not None:
-                filtered_jobs = []
-                for job in jobs_list:
-                    max_yoe = extract_max_years_experience(job.get('description', ''))
-                    if max_yoe is None or max_yoe <= effective_request.max_years_experience:
-                        filtered_jobs.append(job)
-                jobs_list = filtered_jobs
-            
+        
+        # Convert to local search request
+        local_search_request = convert_job_search_to_local_search(
+            effective_request, job_titles, companies, locations
+        )
+        
+        print(f"🔍 Searching local database with: {local_search_request.model_dump()}")
+        
+        # Search local database
+        jobs, total_count = job_scraper.search_local_jobs(
+            db=db,
+            search_term=local_search_request.search_term,
+            company_names=local_search_request.company_names,
+            locations=local_search_request.locations,
+            job_types=local_search_request.job_types,
+            is_remote=local_search_request.is_remote,
+            min_salary=local_search_request.min_salary,
+            max_salary=local_search_request.max_salary,
+            max_experience_years=local_search_request.max_experience_years,
+            sites=local_search_request.sites,
+            days_old=local_search_request.days_old,
+            limit=local_search_request.limit,
+            offset=local_search_request.offset
+        )
+        
+        print(f"📊 Found {len(jobs)} jobs from local database (total: {total_count})")
+        
+        # Convert to format expected by frontend  
+        if jobs:
+            jobs_list = []
+            for job in jobs:
+                job_dict = {
+                    'title': job.title,
+                    'company': job.company,
+                    'location': job.location,
+                    'job_url': job.job_url,
+                    'description': job.description,
+                    'job_type': job.job_type,
+                    'is_remote': job.is_remote,
+                    'min_amount': job.min_amount,
+                    'max_amount': job.max_amount,
+                    'interval': job.salary_interval,  # Fix: JobSpy uses 'interval' not 'salary_interval'
+                    'currency': job.currency,
+                    'date_posted': job.date_posted,  # Fix: Keep as datetime object for frontend compatibility
+                    'site': job.site,
+                    'min_experience_years': job.min_experience_years,
+                    'max_experience_years': job.max_experience_years
+                }
+                jobs_list.append(job_dict)
             # Filter by excluded keywords if set
             if effective_request.exclude_keywords:
                 jobs_list = filter_jobs_by_excluded_keywords(jobs_list, effective_request.exclude_keywords)
@@ -877,12 +880,28 @@ async def search_jobs(
                     search_duration
                 )
             
+            # Prepare search params for response
+            search_params = {
+                "site_name": effective_request.site_name,
+                "search_term": effective_request.search_term,
+                "company_filter": effective_request.company_filter,
+                "location": effective_request.location,
+                "distance": effective_request.distance,
+                "job_type": effective_request.job_type,
+                "is_remote": effective_request.is_remote,
+                "results_wanted": effective_request.results_wanted,
+                "hours_old": effective_request.hours_old,
+                "country_indeed": effective_request.country_indeed,
+                "max_years_experience": effective_request.max_years_experience,
+                "exclude_keywords": effective_request.exclude_keywords
+            }
+            
             return JobSearchResponse(
                 success=True,
-                message=f"Successfully found {len(jobs_list)} jobs{filter_info}",
+                message=f"Found {len(jobs_list)} jobs from local database in {time.time() - start_time:.2f} seconds{filter_info}",
                 job_count=len(jobs_list),
                 jobs=jobs_list,
-                search_params={**base_search_params, "company_filter": effective_request.company_filter, "search_term": effective_request.search_term, "location": effective_request.location, "max_years_experience": effective_request.max_years_experience, "exclude_keywords": effective_request.exclude_keywords},
+                search_params=search_params,
                 timestamp=datetime.now().isoformat()
             )
         else:
@@ -906,12 +925,28 @@ async def search_jobs(
                     search_duration
                 )
             
+            # Prepare search params for response
+            search_params = {
+                "site_name": effective_request.site_name,
+                "search_term": effective_request.search_term,
+                "company_filter": effective_request.company_filter,
+                "location": effective_request.location,
+                "distance": effective_request.distance,
+                "job_type": effective_request.job_type,
+                "is_remote": effective_request.is_remote,
+                "results_wanted": effective_request.results_wanted,
+                "hours_old": effective_request.hours_old,
+                "country_indeed": effective_request.country_indeed,
+                "max_years_experience": effective_request.max_years_experience,
+                "exclude_keywords": effective_request.exclude_keywords
+            }
+            
             return JobSearchResponse(
                 success=True,
-                message=f"No jobs found matching your criteria{filter_info}",
+                message=f"No jobs found matching your criteria in local database{filter_info}",
                 job_count=0,
                 jobs=[],
-                search_params={**base_search_params, "company_filter": effective_request.company_filter, "search_term": effective_request.search_term, "location": effective_request.location, "exclude_keywords": effective_request.exclude_keywords},
+                search_params=search_params,
                 timestamp=datetime.now().isoformat()
             )
     except Exception as e:
@@ -921,8 +956,8 @@ async def search_jobs(
         )
 
 @app.post("/search-jobs-public", response_model=JobSearchResponse)
-async def search_jobs_public(request: JobSearchRequest):
-    """Search for jobs using JobSpy without authentication (public endpoint)."""
+async def search_jobs_public(request: JobSearchRequest, db: Session = Depends(get_db)):
+    """Search for jobs from local database without authentication (public endpoint)."""
     try:
         start_time = time.time()
         
@@ -937,110 +972,140 @@ async def search_jobs_public(request: JobSearchRequest):
             companies = [company.strip() for company in effective_request.company_filter.split(',') if company.strip()]
         # Parse multiple locations (comma-separated)
         locations = [loc.strip() for loc in effective_request.location.split(',') if loc.strip()] if effective_request.location else ["USA"]
-        # Prepare base parameters for JobSpy (except location)
-        base_search_params = {
-            "site_name": effective_request.site_name,
-            # location will be set per-iteration
-            "distance": effective_request.distance,
-            "job_type": effective_request.job_type,
-            "is_remote": effective_request.is_remote,
-            "results_wanted": effective_request.results_wanted,
-            "hours_old": effective_request.hours_old,
-            "country_indeed": effective_request.country_indeed,
-            "easy_apply": getattr(effective_request, 'easy_apply', None),
-            "description_format": getattr(effective_request, 'description_format', 'markdown'),
-            "offset": getattr(effective_request, 'offset', 0),
-            "verbose": getattr(effective_request, 'verbose', 2)
-        }
-        base_search_params = {k: v for k, v in base_search_params.items() if v is not None}
-        all_jobs_df = pd.DataFrame()
-        # Nested loops for all combinations
-        if companies:
-            print(f"Multi-company search for {len(companies)} companies: {companies}")
-            for job_title in job_titles:
-                for company in companies:
-                    for location in locations:
-                        company_search_params = base_search_params.copy()
-                        company_search_params["location"] = location
-                        company_jobs_df = await search_single_company(job_title, company, company_search_params)
-                        if not company_jobs_df.empty:
-                            company_jobs_df = company_jobs_df.copy()
-                            company_jobs_df['search_company'] = company
-                            company_jobs_df['search_title'] = job_title
-                            company_jobs_df['search_location'] = location
-                            if all_jobs_df.empty:
-                                all_jobs_df = company_jobs_df
-                            else:
-                                all_jobs_df = pd.concat([all_jobs_df, company_jobs_df], ignore_index=True)
-        else:
-            print("No company filter - searching all companies")
-            for job_title in job_titles:
-                for location in locations:
-                    search_params = base_search_params.copy()
-                    search_params["search_term"] = job_title
-                    search_params["location"] = location
-                    print(f"JobSpy Parameters: {search_params}")
-                    jobs_df = scrape_jobs(**search_params)
-                    if not jobs_df.empty:
-                        jobs_df = jobs_df.copy()
-                        jobs_df['search_title'] = job_title
-                        jobs_df['search_location'] = location
-                        if all_jobs_df.empty:
-                            all_jobs_df = jobs_df
-                        else:
-                            all_jobs_df = pd.concat([all_jobs_df, jobs_df], ignore_index=True)
         
-        # Process results (same as authenticated version)
-        if not all_jobs_df.empty:
-            # Convert to dict format
+        # Convert to local search request
+        local_search_request = convert_job_search_to_local_search(
+            effective_request, job_titles, companies, locations
+        )
+        
+        print(f"🔍 PUBLIC SEARCH - Searching local database with: {local_search_request.model_dump()}")
+        print(f"🗄️ Database session type: {type(db)}")
+        
+        # Search local database
+        try:
+            print(f"🔍 About to call job_scraper.search_local_jobs...")
+            print(f"🔍 job_scraper type: {type(job_scraper)}")
+            print(f"🔍 job_scraper.search_local_jobs type: {type(job_scraper.search_local_jobs)}")
+            jobs, total_count = job_scraper.search_local_jobs(
+                db=db,
+                search_term=local_search_request.search_term,
+                company_names=local_search_request.company_names,
+                locations=local_search_request.locations,
+                job_types=local_search_request.job_types,
+                is_remote=local_search_request.is_remote,
+                min_salary=local_search_request.min_salary,
+                max_salary=local_search_request.max_salary,
+                max_experience_years=local_search_request.max_experience_years,
+                sites=local_search_request.sites,
+                days_old=local_search_request.days_old,
+                limit=local_search_request.limit,
+                offset=local_search_request.offset
+            )
+            print(f"📊 Found {len(jobs)} jobs from local database (total: {total_count})")
+        except Exception as e:
+            print(f"❌ ERROR in search_local_jobs: {str(e)}")
+            import traceback
+            print(f"❌ TRACEBACK: {traceback.format_exc()}")
+            jobs, total_count = [], 0
+        
+        # Convert to format expected by frontend  
+        if jobs:
             jobs_list = []
-            for _, row in all_jobs_df.iterrows():
-                job_dict = {}
-                for col in all_jobs_df.columns:
-                    if pd.notna(row[col]):
-                        if col in ['min_amount', 'max_amount'] and isinstance(row[col], (int, float)):
-                            job_dict[col] = float(row[col])
-                        elif col == 'emails' and isinstance(row[col], list):
-                            job_dict[col] = row[col]
-                        else:
-                            job_dict[col] = str(row[col])
+            for job in jobs:
+                job_dict = {
+                    'title': job.title,
+                    'company': job.company,
+                    'location': job.location,
+                    'job_url': job.job_url,
+                    'description': job.description,
+                    'job_type': job.job_type,
+                    'is_remote': job.is_remote,
+                    'min_amount': job.min_amount,
+                    'max_amount': job.max_amount,
+                    'interval': job.salary_interval,  # Fix: JobSpy uses 'interval' not 'salary_interval'
+                    'currency': job.currency,
+                    'date_posted': job.date_posted,  # Fix: Keep as datetime object for frontend compatibility
+                    'site': job.site,
+                    'min_experience_years': job.min_experience_years,
+                    'max_experience_years': job.max_experience_years
+                }
                 jobs_list.append(job_dict)
             
             # Filter by excluded keywords if set
             if effective_request.exclude_keywords:
                 jobs_list = filter_jobs_by_excluded_keywords(jobs_list, effective_request.exclude_keywords)
             
-            # Remove duplicates based on job_url
-            unique_jobs = {}
-            for job in jobs_list:
-                job_url = job.get('job_url', '')
-                if job_url and job_url not in unique_jobs:
-                    unique_jobs[job_url] = job
-                elif not job_url:
-                    # For jobs without URL, add them all (they'll be handled by frontend)
-                    title_company_key = f"{job.get('title', '')}-{job.get('company', '')}-{job.get('location', '')}"
-                    unique_jobs[title_company_key] = job
+            filter_info = ""
+            if companies:
+                if len(companies) == 1:
+                    filter_info = f" (company: {companies[0]})"
+                else:
+                    filter_info = f" (companies: {', '.join(companies)})"
+            if len(job_titles) > 1:
+                filter_info += f" (titles: {', '.join(job_titles)})"
+            if len(locations) > 1:
+                filter_info += f" (locations: {', '.join(locations)})"
+            if effective_request.max_years_experience is not None:
+                filter_info += f" (max YOE: {effective_request.max_years_experience})"
             
-            unique_jobs_list = list(unique_jobs.values())
-            
-            end_time = time.time()
-            search_duration = end_time - start_time
+            # Prepare search params for response
+            search_params = {
+                "site_name": effective_request.site_name,
+                "search_term": effective_request.search_term,
+                "company_filter": effective_request.company_filter,
+                "location": effective_request.location,
+                "distance": effective_request.distance,
+                "job_type": effective_request.job_type,
+                "is_remote": effective_request.is_remote,
+                "results_wanted": effective_request.results_wanted,
+                "hours_old": effective_request.hours_old,
+                "country_indeed": effective_request.country_indeed,
+                "max_years_experience": effective_request.max_years_experience,
+                "exclude_keywords": effective_request.exclude_keywords
+            }
             
             return JobSearchResponse(
                 success=True,
-                message=f"Found {len(unique_jobs_list)} unique jobs (removed {len(jobs_list) - len(unique_jobs_list)} duplicates) in {search_duration:.2f} seconds",
-                job_count=len(unique_jobs_list),
-                jobs=unique_jobs_list,
-                search_params={**base_search_params, "company_filter": effective_request.company_filter, "search_term": effective_request.search_term, "location": effective_request.location, "exclude_keywords": effective_request.exclude_keywords},
+                message=f"Found {len(jobs_list)} jobs from local database in {time.time() - start_time:.2f} seconds{filter_info}",
+                job_count=len(jobs_list),
+                jobs=jobs_list,
+                search_params=search_params,
                 timestamp=datetime.now().isoformat()
             )
         else:
+            filter_info = ""
+            if companies:
+                if len(companies) == 1:
+                    filter_info = f" for company '{companies[0]}'"
+                else:
+                    filter_info = f" for companies: {', '.join(companies)}"
+            if len(job_titles) > 1:
+                filter_info += f" for titles: {', '.join(job_titles)}"
+            if len(locations) > 1:
+                filter_info += f" for locations: {', '.join(locations)}"
+            
+            # Prepare search params for response
+            search_params = {
+                "site_name": effective_request.site_name,
+                "search_term": effective_request.search_term,
+                "company_filter": effective_request.company_filter,
+                "location": effective_request.location,
+                "distance": effective_request.distance,
+                "job_type": effective_request.job_type,
+                "is_remote": effective_request.is_remote,
+                "results_wanted": effective_request.results_wanted,
+                "hours_old": effective_request.hours_old,
+                "country_indeed": effective_request.country_indeed,
+                "max_years_experience": effective_request.max_years_experience,
+                "exclude_keywords": effective_request.exclude_keywords
+            }
+            
             return JobSearchResponse(
                 success=True,
-                message="No jobs found matching your criteria",
+                message=f"No jobs found matching your criteria in local database{filter_info}",
                 job_count=0,
                 jobs=[],
-                search_params={**base_search_params, "company_filter": effective_request.company_filter, "search_term": effective_request.search_term, "location": effective_request.location, "exclude_keywords": effective_request.exclude_keywords},
+                search_params=search_params,
                 timestamp=datetime.now().isoformat()
             )
     except Exception as e:

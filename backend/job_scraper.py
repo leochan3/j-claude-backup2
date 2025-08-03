@@ -372,8 +372,11 @@ class JobScrapingService:
     ) -> Tuple[List[ScrapedJob], int]:
         """Search jobs in local database."""
         
+        print(f"🔎 SEARCH_LOCAL_JOBS called with: search_term={search_term}, sites={sites}, days_old={days_old}")
+        
         # Build query
         query = db.query(ScrapedJob).filter(ScrapedJob.is_active == True)
+        print(f"🗄️ Base query created, checking for active jobs")
         
         # Date filter
         if days_old:
@@ -389,7 +392,8 @@ class JobScrapingService:
         if search_term:
             search_filter = or_(
                 ScrapedJob.title.ilike(f"%{search_term}%"),
-                ScrapedJob.description.ilike(f"%{search_term}%")
+                ScrapedJob.description.ilike(f"%{search_term}%"),
+                ScrapedJob.company.ilike(f"%{search_term}%")
             )
             query = query.filter(search_filter)
         

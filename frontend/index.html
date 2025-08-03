@@ -2439,7 +2439,7 @@
                 console.log('Auth token:', authToken);
                 
                 // Use different endpoint based on authentication status
-                const endpoint = currentUser ? '/search-jobs' : '/search-jobs-public';
+                const endpoint = currentUser ? '/search-jobs-local' : '/search-jobs-local-public';
                 const headers = { 'Content-Type': 'application/json' };
                 if (currentUser) {
                     Object.assign(headers, getAuthHeaders());
