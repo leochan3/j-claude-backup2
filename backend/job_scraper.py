@@ -210,13 +210,20 @@ class JobScrapingService:
                             date_posted = datetime.fromisoformat(job_data['date_posted'])
                         elif isinstance(job_data['date_posted'], datetime):
                             date_posted = job_data['date_posted']
-                    except:
+                        else:
+                            # JobSpy often returns date objects
+                            from datetime import date
+                            if isinstance(job_data['date_posted'], date):
+                                date_posted = datetime.combine(job_data['date_posted'], datetime.min.time())
+                    except Exception as e:
+                        print(f"Failed to parse date_posted: {job_data.get('date_posted')} - {e}")
                         date_posted = None
                 
-                # Create new job record
+                # Create new job record - use direct apply URL if available
+                job_url = job_data.get('job_url_direct') or job_data.get('job_url')
                 scraped_job = ScrapedJob(
                     job_hash=job_hash,
-                    job_url=job_data.get('job_url'),
+                    job_url=job_url,
                     title=job_data.get('title', ''),
                     company=job_data.get('company', ''),
                     location=job_data.get('location'),
