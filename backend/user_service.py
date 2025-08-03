@@ -232,14 +232,9 @@ class UserService:
         search_duration: int = 0
     ):
         """Add a search to user's history."""
-        # Ensure search_term is never None to avoid NOT NULL constraint violation
-        search_term = search_params.get('search_term')
-        if search_term is None or search_term == '' or (isinstance(search_term, str) and search_term.strip() == ''):
-            search_term = 'all'
-        
         search_history = SearchHistory(
             user_id=user_id,
-            search_term=search_term,
+            search_term=search_params.get('search_term') or 'all',
             sites=search_params.get('site_name', []),
             location=search_params.get('location'),
             distance=search_params.get('distance'),

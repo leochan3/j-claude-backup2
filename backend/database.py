@@ -115,7 +115,7 @@ class SearchHistory(Base):
     user_id = Column(String, ForeignKey("users.id"), nullable=False)
     
     # Search parameters
-    search_term = Column(String, nullable=False, default="all")
+    search_term = Column(String, nullable=False)
     sites = Column(JSON)
     location = Column(String)
     distance = Column(Integer)
