@@ -91,6 +91,56 @@
             grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); 
             gap: 15px;
         }
+        .delete-btn {
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.8em;
+            margin-left: 10px;
+            transition: background 0.2s;
+        }
+        .delete-btn:hover {
+            background: #c82333;
+        }
+        .delete-btn:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
+        .job-actions {
+            margin-top: 10px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        .company-actions {
+            margin-top: 10px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        .bulk-delete-btn {
+            background: #e74c3c;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9em;
+            font-weight: bold;
+        }
+        .bulk-delete-btn:hover {
+            background: #c0392b;
+        }
+        .success { 
+            color: #28a745; 
+            background: #d4edda; 
+            padding: 15px; 
+            border-radius: 5px; 
+            margin: 10px 0;
+        }
     </style>
 </head>
 <body>
@@ -225,6 +275,11 @@
                                 <div>📊 Total Jobs: ${company.total_jobs_found}</div>
                                 <div>🕒 Last Scraped: ${company.last_scraped ? new Date(company.last_scraped).toLocaleString() : 'Never'}</div>
                             </div>
+                            <div class="company-actions">
+                                <button class="bulk-delete-btn" onclick="deleteCompanyJobs('${company.name}', ${company.total_jobs_found})">
+                                    🗑️ Delete All ${company.total_jobs_found} Jobs
+                                </button>
+                            </div>
                         </div>
                     `).join('');
                 } else {
@@ -290,7 +345,12 @@
                                     ${job.min_experience_years ? ` | 🎯 ${job.min_experience_years}+ years exp` : ''}
                                     ${job.is_remote ? ' | 🏠 Remote' : ''}
                                 </div>
-                                ${job.job_url ? `<div style="margin-top: 10px;"><a href="${job.job_url}" target="_blank">🔗 View Job</a></div>` : ''}
+                                <div class="job-actions">
+                                    ${job.job_url ? `<a href="${job.job_url}" target="_blank" style="color: #007bff; text-decoration: none;">🔗 View Job</a>` : ''}
+                                    <button class="delete-btn" onclick="deleteJob('${job.id}', '${job.title.replace(/'/g, "\\'")}', '${job.company.replace(/'/g, "\\'")}')">
+                                        🗑️ Delete
+                                    </button>
+                                </div>
                             </div>
                         `).join('')}
                     `;
@@ -300,6 +360,87 @@
 
             } catch (error) {
                 resultsDiv.innerHTML = `<div class="error">❌ Search error: ${error.message}</div>`;
+            }
+        }
+
+        // Delete individual job
+        async function deleteJob(jobId, jobTitle, companyName) {
+            if (!confirm(`Are you sure you want to delete the job "${jobTitle}" at ${companyName}?`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/admin/jobs-public/${jobId}`, {
+                    method: 'DELETE'
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const result = await response.json();
+                
+                // Show success message
+                const successDiv = document.createElement('div');
+                successDiv.className = 'success';
+                successDiv.innerHTML = `✅ Successfully deleted job "${jobTitle}"`;
+                
+                const searchResults = document.getElementById('searchResults');
+                searchResults.insertBefore(successDiv, searchResults.firstChild);
+                
+                // Remove success message after 3 seconds
+                setTimeout(() => {
+                    if (successDiv.parentNode) {
+                        successDiv.parentNode.removeChild(successDiv);
+                    }
+                }, 3000);
+
+                // Refresh search results
+                searchJobs();
+
+            } catch (error) {
+                alert(`Error deleting job: ${error.message}`);
+            }
+        }
+
+        // Delete all jobs for a company
+        async function deleteCompanyJobs(companyName, jobCount) {
+            if (!confirm(`Are you sure you want to delete ALL ${jobCount} jobs for ${companyName}? This action cannot be undone.`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/admin/companies-public/${encodeURIComponent(companyName)}/jobs`, {
+                    method: 'DELETE'
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const result = await response.json();
+                
+                // Show success message
+                const successDiv = document.createElement('div');
+                successDiv.className = 'success';
+                successDiv.innerHTML = `✅ Successfully deleted ${result.deleted_count} jobs for ${companyName}`;
+                
+                const companiesList = document.getElementById('companiesList');
+                companiesList.insertBefore(successDiv, companiesList.firstChild);
+                
+                // Remove success message after 5 seconds
+                setTimeout(() => {
+                    if (successDiv.parentNode) {
+                        successDiv.parentNode.removeChild(successDiv);
+                    }
+                }, 5000);
+
+                // Refresh companies list and stats
+                loadCompanies();
+                loadStats();
+
+            } catch (error) {
+                alert(`Error deleting company jobs: ${error.message}`);
             }
         }
 

@@ -2388,6 +2388,80 @@ async def download_latex_file(request: dict):
             detail=f"Error creating LaTeX file: {str(e)}"
         )
 
+@app.delete("/admin/jobs/{job_id}")
+async def delete_job(job_id: str, current_user: User = Depends(get_current_active_user), db: Session = Depends(get_db)):
+    """Delete a specific job by ID"""
+    try:
+        job = db.query(ScrapedJob).filter(ScrapedJob.id == job_id).first()
+        if not job:
+            raise HTTPException(status_code=404, detail="Job not found")
+        
+        db.delete(job)
+        db.commit()
+        
+        return {"success": True, "message": f"Job '{job.title}' deleted successfully"}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error deleting job: {str(e)}")
+
+@app.delete("/admin/companies/{company_name}/jobs")
+async def delete_company_jobs(company_name: str, current_user: User = Depends(get_current_active_user), db: Session = Depends(get_db)):
+    """Delete all jobs for a specific company"""
+    try:
+        jobs = db.query(ScrapedJob).filter(ScrapedJob.company.ilike(f"%{company_name}%")).all()
+        if not jobs:
+            raise HTTPException(status_code=404, detail=f"No jobs found for company '{company_name}'")
+        
+        job_count = len(jobs)
+        for job in jobs:
+            db.delete(job)
+        
+        db.commit()
+        
+        return {"success": True, "message": f"Deleted {job_count} jobs for company '{company_name}'"}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error deleting company jobs: {str(e)}")
+
+# Public versions for admin UI (no auth required)
+@app.delete("/admin/jobs-public/{job_id}")
+async def delete_job_public(job_id: str, db: Session = Depends(get_db)):
+    """Delete a specific job by ID (public endpoint for admin UI)"""
+    try:
+        job = db.query(ScrapedJob).filter(ScrapedJob.id == job_id).first()
+        if not job:
+            raise HTTPException(status_code=404, detail="Job not found")
+        
+        job_title = job.title
+        job_company = job.company
+        
+        db.delete(job)
+        db.commit()
+        
+        return {"success": True, "message": f"Job '{job_title}' at {job_company} deleted successfully"}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error deleting job: {str(e)}")
+
+@app.delete("/admin/companies-public/{company_name}/jobs")
+async def delete_company_jobs_public(company_name: str, db: Session = Depends(get_db)):
+    """Delete all jobs for a specific company (public endpoint for admin UI)"""
+    try:
+        jobs = db.query(ScrapedJob).filter(ScrapedJob.company.ilike(f"%{company_name}%")).all()
+        if not jobs:
+            raise HTTPException(status_code=404, detail=f"No jobs found for company '{company_name}'")
+        
+        job_count = len(jobs)
+        for job in jobs:
+            db.delete(job)
+        
+        db.commit()
+        
+        return {"success": True, "message": f"Deleted {job_count} jobs for company '{company_name}'"}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error deleting company jobs: {str(e)}")
+
 @app.get("/admin")
 async def serve_admin_dashboard():
     """Serve the unified admin dashboard"""
