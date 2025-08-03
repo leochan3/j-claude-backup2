@@ -2838,11 +2838,10 @@
                         
                         <div class="job-details">
                             ${job.company ? `<div class="job-detail" style="background: #e8f5e8;"><strong>Company:</strong> ${escapeHtml(job.company)}</div>` : ''}
-                            ${job.site ? `<div class="job-detail"><strong>Site:</strong> ${escapeHtml(job.site)}</div>` : ''}
                             ${job.location ? `<div class="job-detail"><strong>Location:</strong> ${escapeHtml(job.location)}</div>` : ''}
                             ${job.job_type ? `<div class="job-detail"><strong>Type:</strong> ${escapeHtml(job.job_type)}</div>` : ''}
                             ${job.is_remote ? `<div class="job-detail"><strong>Remote:</strong> Yes</div>` : ''}
-                            ${job.date_posted ? `<div class="job-detail"><strong>Posted:</strong> ${escapeHtml(job.date_posted)}</div>` : ''}
+                            ${job.date_posted ? `<div class="job-detail"><strong>Posted:</strong> ${formatJobDate(job.date_posted)}</div>` : ''}
                             ${(job.min_amount || job.max_amount) ? `<div class="job-detail"><strong>Salary:</strong> ${formatSalary(job)}</div>` : ''}
                         </div>
                         
@@ -2901,6 +2900,18 @@
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
+        }
+        
+        function formatJobDate(dateString) {
+            if (!dateString) return 'N/A';
+            try {
+                // Handle both ISO strings and date objects
+                const date = new Date(dateString);
+                // Return just the date part (YYYY-MM-DD)
+                return date.toISOString().split('T')[0];
+            } catch (e) {
+                return dateString; // Fallback to original if parsing fails
+            }
         }
         
         function formatSalary(job) {
@@ -3496,7 +3507,6 @@
                         <div class="job-detail"><strong>Location:</strong> ${escapeHtml(job.location || 'Not specified')}</div>
                         <div class="job-detail"><strong>Job Type:</strong> ${escapeHtml(job.job_type || 'Not specified')}</div>
                         <div class="job-detail"><strong>Salary:</strong> ${formatSalary(job)}</div>
-                        <div class="job-detail"><strong>Site:</strong> ${escapeHtml(job.site || 'N/A')}</div>
                     </div>
                     ${job.description ? `
                         <div class="job-description">
