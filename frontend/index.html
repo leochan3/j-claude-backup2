@@ -2445,6 +2445,18 @@
                     Object.assign(headers, getAuthHeaders());
                 }
                 
+                // Convert results_wanted to limit for local search endpoints
+                if (searchData.results_wanted) {
+                    searchData.limit = searchData.results_wanted;
+                    delete searchData.results_wanted;
+                }
+                
+                // Convert company_filter to company_names array for local search endpoints
+                if (searchData.company_filter) {
+                    searchData.company_names = searchData.company_filter.split(',').map(c => c.trim()).filter(c => c);
+                    delete searchData.company_filter;
+                }
+                
                 console.log('Using endpoint:', endpoint);
                 console.log('Using headers:', headers);
                 
