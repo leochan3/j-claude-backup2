@@ -345,6 +345,7 @@ async def root():
         "message": "JobSpy API with User Accounts and Local Job Database is running!", 
         "frontends": [
             "/app - Main Job Search Interface",
+            "/admin - 🛠️ Unified Admin Dashboard (All admin tools in one place)",
             "/database-viewer - Database Viewer (Admin)",
             "/scraping-interface - Job Scraping Interface (Admin)",
             "/user-management - User Management (Admin)",
@@ -2386,6 +2387,14 @@ async def download_latex_file(request: dict):
             status_code=500,
             detail=f"Error creating LaTeX file: {str(e)}"
         )
+
+@app.get("/admin")
+async def serve_admin_dashboard():
+    """Serve the unified admin dashboard"""
+    try:
+        return FileResponse("../admin-dashboard.html")
+    except:
+        return {"message": "Admin dashboard not available", "api_docs": "/docs"}
 
 if __name__ == "__main__":
     print(f"Starting JobSpy API server on {BACKEND_HOST}:{BACKEND_PORT}")
