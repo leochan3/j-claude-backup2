@@ -234,7 +234,7 @@ class UserService:
         """Add a search to user's history."""
         search_history = SearchHistory(
             user_id=user_id,
-            search_term=search_params.get('search_term') or 'all',
+            search_term=search_params.get('search_term', ''),
             sites=search_params.get('site_name', []),
             location=search_params.get('location'),
             distance=search_params.get('distance'),
