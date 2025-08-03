@@ -1089,8 +1089,8 @@
                 <form id="job-search-form" class="search-form">
                 <div class="form-grid">
                     <div class="form-group">
-                        <label for="search-term">Job Title/Role *</label>
-                        <input type="text" id="search-term" name="search_term" required placeholder="e.g., Product Manager, Software Engineer">
+                        <label for="search-term">Job Title/Role (Optional)</label>
+                        <input type="text" id="search-term" name="search_term" placeholder="e.g., Product Manager, Software Engineer, or 'all' for all jobs">
                     </div>
 
                     <div class="form-group">
@@ -1117,10 +1117,6 @@
                         <input type="text" id="location" name="location" value="USA">
                     </div>
 
-                    <div class="form-group">
-                        <label for="results-wanted">Number of Results</label>
-                        <input type="number" id="results-wanted" name="results_wanted" value="1000" min="1" max="1000">
-                    </div>
 
                     <div class="form-group">
                         <label for="distance">Distance (miles)</label>
@@ -2167,9 +2163,6 @@
             if (preferences.default_location) {
                 document.getElementById('location').value = preferences.default_location;
             }
-            if (preferences.default_results_wanted) {
-                document.getElementById('results-wanted').value = preferences.default_results_wanted;
-            }
             if (preferences.default_job_type) {
                 document.getElementById('job-type').value = preferences.default_job_type;
             }
@@ -2338,7 +2331,6 @@
                     if (searchData.company_filter) document.getElementById('company-filter').value = searchData.company_filter;
                     if (searchData.exclude_keywords) document.getElementById('exclude-keywords').value = searchData.exclude_keywords;
                     if (searchData.job_type) document.getElementById('job-type').value = searchData.job_type;
-                    if (searchData.results_wanted) document.getElementById('results-wanted').value = searchData.results_wanted;
                     
                     // Switch to search tab
                     switchToTab('search');
@@ -2445,16 +2437,18 @@
                     Object.assign(headers, getAuthHeaders());
                 }
                 
-                // Convert results_wanted to limit for local search endpoints
-                if (searchData.results_wanted) {
-                    searchData.limit = searchData.results_wanted;
-                    delete searchData.results_wanted;
-                }
+                // Set high default limit since we removed the results field
+                searchData.limit = 10000;
                 
                 // Convert company_filter to company_names array for local search endpoints
                 if (searchData.company_filter) {
                     searchData.company_names = searchData.company_filter.split(',').map(c => c.trim()).filter(c => c);
                     delete searchData.company_filter;
+                }
+                
+                // Handle "all" keyword for search_term to get all jobs
+                if (searchData.search_term && searchData.search_term.toLowerCase().trim() === 'all') {
+                    delete searchData.search_term; // Remove search_term to get all jobs
                 }
                 
                 console.log('Using endpoint:', endpoint);

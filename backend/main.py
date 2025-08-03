@@ -731,7 +731,7 @@ def convert_job_search_to_local_search(
         max_experience_years=effective_request.max_years_experience,
         sites=effective_request.site_name,
         days_old=days_old or 30,  # Default to 30 days if not specified
-        limit=effective_request.results_wanted or 100,
+        limit=effective_request.results_wanted or 10000,
         offset=getattr(effective_request, 'offset', 0)
     )
 

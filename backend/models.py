@@ -291,7 +291,7 @@ class ScrapedJobSearchRequest(BaseModel):
     max_experience_years: Optional[int] = None
     sites: Optional[List[str]] = None
     days_old: Optional[int] = 30  # Default to last 30 days
-    limit: Optional[int] = 100
+    limit: Optional[int] = 10000
     offset: Optional[int] = 0
 
 class ScrapedJobSearchResponse(BaseModel):
