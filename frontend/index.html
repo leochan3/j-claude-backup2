@@ -2446,8 +2446,8 @@
                     delete searchData.company_filter;
                 }
                 
-                // Handle "all" keyword for search_term to get all jobs
-                if (searchData.search_term && searchData.search_term.toLowerCase().trim() === 'all') {
+                // Handle "all" keyword or empty search_term to get all jobs
+                if (!searchData.search_term || searchData.search_term.toLowerCase().trim() === 'all') {
                     delete searchData.search_term; // Remove search_term to get all jobs
                 }
                 

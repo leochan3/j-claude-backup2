@@ -875,7 +875,7 @@ async def search_jobs(
             if getattr(request, 'save_search', True):  # Default to saving search history
                 UserService.add_search_history(
                     db, current_user.id,
-                    effective_request.dict(),
+                    effective_request.model_dump(),
                     len(jobs_list),
                     search_duration
                 )
@@ -920,7 +920,7 @@ async def search_jobs(
             if getattr(request, 'save_search', True):
                 UserService.add_search_history(
                     db, current_user.id,
-                    effective_request.dict(),
+                    effective_request.model_dump(),
                     0,
                     search_duration
                 )
@@ -1906,9 +1906,13 @@ async def search_jobs_local(
         # Save search to history if requested
         if getattr(request, 'save_search', True):
             search_duration = int((datetime.now() - start_time).total_seconds())
+            # Prepare search params for history, ensuring search_term is never None
+            search_params = request.model_dump()
+            if not search_params.get('search_term'):
+                search_params['search_term'] = 'all'
             UserService.add_search_history(
                 db, current_user.id,
-                request.dict(),
+                search_params,
                 len(job_responses),
                 search_duration
             )
@@ -1918,7 +1922,7 @@ async def search_jobs_local(
             message=f"Found {len(job_responses)} jobs from local database (total: {total_count})",
             total_count=total_count,
             jobs=job_responses,
-            search_params=request.dict(),
+            search_params=request.model_dump(),
             timestamp=datetime.now()
         )
         
@@ -1960,7 +1964,7 @@ async def search_jobs_local_public(
             message=f"Found {len(job_responses)} jobs from local database (total: {total_count})",
             total_count=total_count,
             jobs=job_responses,
-            search_params=request.dict(),
+            search_params=request.model_dump(),
             timestamp=datetime.now()
         )
         
