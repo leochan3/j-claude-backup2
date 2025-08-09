@@ -911,7 +911,7 @@ async def search_jobs(
                 job_count=len(jobs_list),
                 jobs=jobs_list,
                 search_params=search_params,
-                timestamp=datetime.now().isoformat()
+                timestamp=datetime.now(timezone.utc).isoformat()
             )
         else:
             filter_info = ""
@@ -956,7 +956,7 @@ async def search_jobs(
                 job_count=0,
                 jobs=[],
                 search_params=search_params,
-                timestamp=datetime.now().isoformat()
+                timestamp=datetime.now(timezone.utc).isoformat()
             )
     except Exception as e:
         raise HTTPException(
@@ -1079,7 +1079,7 @@ async def search_jobs_public(request: JobSearchRequest, db: Session = Depends(ge
                 job_count=len(jobs_list),
                 jobs=jobs_list,
                 search_params=search_params,
-                timestamp=datetime.now().isoformat()
+                timestamp=datetime.now(timezone.utc).isoformat()
             )
         else:
             filter_info = ""
@@ -1115,7 +1115,7 @@ async def search_jobs_public(request: JobSearchRequest, db: Session = Depends(ge
                 job_count=0,
                 jobs=[],
                 search_params=search_params,
-                timestamp=datetime.now().isoformat()
+                timestamp=datetime.now(timezone.utc).isoformat()
             )
     except Exception as e:
         raise HTTPException(
@@ -1377,7 +1377,7 @@ async def ai_filter_jobs(request: AIFilterRequest, http_request: Request):
         from openai import OpenAI
         client = OpenAI(api_key=api_key)
         
-        start_time = datetime.now()
+        start_time = datetime.now(timezone.utc)
         original_count = len(request.jobs)
         
         if original_count == 0:
@@ -1439,7 +1439,7 @@ async def ai_filter_jobs(request: AIFilterRequest, http_request: Request):
             
             print(f"Filtered to {filtered_count} jobs meeting criteria")
         
-        end_time = datetime.now()
+        end_time = datetime.now(timezone.utc)
         duration = (end_time - start_time).total_seconds()
         
         message = f"Successfully analyzed {original_count} jobs in {duration:.1f} seconds"
@@ -1677,7 +1677,7 @@ async def get_saved_jobs():
             message=f"Retrieved {len(saved_jobs)} saved jobs",
             saved_jobs=saved_jobs,
             total_count=len(saved_jobs),
-            timestamp=datetime.now().isoformat()
+            timestamp=datetime.now(timezone.utc).isoformat()
         )
     except Exception as e:
         print(f"Error in /saved-jobs endpoint: {e}")
@@ -1890,7 +1890,7 @@ async def search_jobs_local(
 ):
     """Search jobs from local database instead of external APIs."""
     try:
-        start_time = datetime.now()
+        start_time = datetime.now(timezone.utc)
         
         # Search local database
         jobs, total_count = job_scraper.search_local_jobs(
@@ -1914,7 +1914,7 @@ async def search_jobs_local(
         
         # Save search to history if requested
         if getattr(request, 'save_search', True):
-            search_duration = int((datetime.now() - start_time).total_seconds())
+            search_duration = int((datetime.now(timezone.utc) - start_time).total_seconds())
             UserService.add_search_history(
                 db, current_user.id,
                 request.dict(),
@@ -1928,7 +1928,7 @@ async def search_jobs_local(
             total_count=total_count,
             jobs=job_responses,
             search_params=request.dict(),
-            timestamp=datetime.now()
+            timestamp=datetime.now(timezone.utc)
         )
         
     except Exception as e:
@@ -1970,7 +1970,7 @@ async def search_jobs_local_public(
             total_count=total_count,
             jobs=job_responses,
             search_params=request.dict(),
-            timestamp=datetime.now()
+            timestamp=datetime.now(timezone.utc)
         )
         
     except Exception as e:

@@ -325,7 +325,7 @@ class JobScrapingService:
                     total_duplicates += duplicates
                     
                     # Update target company stats
-                    target_company.last_scraped = datetime.now()
+                    target_company.last_scraped = datetime.now(timezone.utc)
                     target_company.total_jobs_found = db.query(ScrapedJob).filter(
                         ScrapedJob.target_company_id == target_company.id,
                         ScrapedJob.is_active == True
@@ -338,7 +338,7 @@ class JobScrapingService:
             
             # Update scraping run with results
             scraping_run.status = "completed"
-            scraping_run.completed_at = datetime.now()
+            scraping_run.completed_at = datetime.now(timezone.utc)
             scraping_run.duration_seconds = int((scraping_run.completed_at - scraping_run.started_at).total_seconds())
             scraping_run.total_jobs_found = total_jobs_found
             scraping_run.new_jobs_added = total_new_jobs
@@ -354,7 +354,7 @@ class JobScrapingService:
         except Exception as e:
             scraping_run.status = "failed"
             scraping_run.error_message = str(e)
-            scraping_run.completed_at = datetime.now()
+            scraping_run.completed_at = datetime.now(timezone.utc)
             db.commit()
             print(f"❌ Scraping failed: {str(e)}")
             raise

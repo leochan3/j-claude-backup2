@@ -7,7 +7,7 @@ from models import (
     SaveJobRequest, SavedJobUpdate, SavedSearchCreate, SavedSearchUpdate
 )
 from auth import get_password_hash
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional
 import uuid
 
@@ -95,7 +95,7 @@ class UserService:
         for field, value in update_data.items():
             setattr(db_preferences, field, value)
         
-        db_preferences.updated_at = datetime.utcnow()
+        db_preferences.updated_at = datetime.now(timezone.utc)
         db.commit()
         db.refresh(db_preferences)
         return db_preferences
@@ -182,10 +182,10 @@ class UserService:
         update_data = job_update.dict(exclude_unset=True)
         for field, value in update_data.items():
             if field == 'applied' and value:
-                setattr(db_job, 'applied_at', datetime.utcnow())
+                setattr(db_job, 'applied_at', datetime.now(timezone.utc))
             setattr(db_job, field, value)
         
-        db_job.updated_at = datetime.utcnow()
+        db_job.updated_at = datetime.now(timezone.utc)
         db.commit()
         db.refresh(db_job)
         return db_job
@@ -304,7 +304,7 @@ class UserService:
         for field, value in update_data.items():
             setattr(db_search, field, value)
         
-        db_search.updated_at = datetime.utcnow()
+        db_search.updated_at = datetime.now(timezone.utc)
         db.commit()
         db.refresh(db_search)
         return db_search
