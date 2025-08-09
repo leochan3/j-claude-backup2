@@ -302,7 +302,8 @@
     </div>
 
     <script>
-        const API_BASE = 'http://localhost:8000';
+        const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+const API_BASE = isLocalhost ? 'http://localhost:8000' : `https://${window.location.hostname}`;
         let allUsers = [];
         let userStats = {};
 
