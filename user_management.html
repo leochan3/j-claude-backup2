@@ -302,8 +302,12 @@
     </div>
 
     <script>
-        const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-const API_BASE = isLocalhost ? 'http://localhost:8000' : `https://${window.location.hostname}`;
+                const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+        const API_BASE = isLocalhost ? 'http://localhost:8000' : `https://${window.location.hostname}`;
+        
+        // Debug logging for environment detection
+        console.log(`🌍 User Management Environment: ${isLocalhost ? 'Local Development' : 'Production'}`);
+        console.log(`🔗 User Management API Base URL: ${API_BASE}`);
         let allUsers = [];
         let userStats = {};
 
@@ -313,13 +317,16 @@ const API_BASE = isLocalhost ? 'http://localhost:8000' : `https://${window.locat
             statsGrid.innerHTML = '<div class="loading">📊 Loading user statistics...</div>';
 
             try {
+                console.log(`🔄 Attempting to fetch user stats from: ${API_BASE}/admin/users-stats-public`);
                 const response = await fetch(`${API_BASE}/admin/users-stats-public`);
+                console.log(`📡 Response status: ${response.status} ${response.statusText}`);
                 
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                 }
                 
                 const data = await response.json();
+                console.log('✅ User stats loaded successfully:', data);
                 userStats = data.stats;
 
                 statsGrid.innerHTML = `
@@ -346,11 +353,19 @@ const API_BASE = isLocalhost ? 'http://localhost:8000' : `https://${window.locat
                 `;
 
             } catch (error) {
+                console.error('❌ Error loading user stats:', error);
+                console.error('🔍 Full error details:', error.stack || error);
+                console.log('🌐 Current hostname:', window.location.hostname);
+                console.log('🔗 Attempted URL:', `${API_BASE}/admin/users-stats-public`);
+                
                 statsGrid.innerHTML = `
                     <div class="error">
                         ❌ Error loading user stats: ${error.message}
                         <br><br>
-                        Make sure the server is running: <code>python backend/main.py</code>
+                        🌐 Environment: ${isLocalhost ? 'Local' : 'Production'}<br>
+                        🔗 API URL: ${API_BASE}<br>
+                        📍 Current page: ${window.location.href}<br><br>
+                        ${isLocalhost ? 'Make sure the server is running: <code>python backend/main.py</code>' : 'Check browser console for more details.'}
                     </div>
                 `;
             }
