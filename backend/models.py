@@ -325,6 +325,7 @@ class ScrapingRunResponse(BaseModel):
     completed_at: Optional[datetime]
     duration_seconds: Optional[int]
     error_message: Optional[str]
+    search_analytics: Optional[Dict[str, Dict[str, int]]] = None
     
     class Config:
         from_attributes = True

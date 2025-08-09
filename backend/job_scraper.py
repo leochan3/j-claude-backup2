@@ -97,6 +97,7 @@ class JobScrapingService:
             locations = ["USA", "Remote", "United States"]
         
         all_jobs = []
+        search_analytics = {}  # Track results per search term
         
         print(f"🔍 Scraping jobs for {company_name}")
         
@@ -135,6 +136,10 @@ class JobScrapingService:
                         if not jobs_df.empty:
                             jobs_list = jobs_df.to_dict('records')
                             
+                            # Track analytics for this search term
+                            search_key = f"{search_term}@{location}"
+                            search_analytics[search_key] = len(jobs_list)
+                            
                             # Clean up NaN values
                             for job in jobs_list:
                                 for key, value in job.items():
@@ -145,9 +150,10 @@ class JobScrapingService:
                                 job['scraped_location'] = location
                             
                             all_jobs.extend(jobs_list)
-                            print(f"  ✅ Found {len(jobs_list)} jobs for {company_name}")
+                            print(f"  ✅ Found {len(jobs_list)} jobs for {company_name} using '{search_term}' in {location}")
                         else:
-                            print(f"  ❌ No jobs found for {company_name} in {location}")
+                            search_analytics[f"{search_term}@{location}"] = 0
+                            print(f"  ❌ No jobs found for {company_name} using '{search_term}' in {location}")
                     else:
                         print(f"  ❌ No results from JobSpy for {company_name} in {location}")
                 
@@ -171,9 +177,16 @@ class JobScrapingService:
                     unique_jobs[key] = job
         
         final_jobs = list(unique_jobs.values())
-        print(f"🎯 Total unique jobs found for {company_name}: {len(final_jobs)}")
         
-        return final_jobs
+        # Print analytics summary
+        print(f"🎯 Total unique jobs found for {company_name}: {len(final_jobs)}")
+        print(f"\n📊 SEARCH TERM PERFORMANCE ANALYTICS:")
+        sorted_analytics = sorted(search_analytics.items(), key=lambda x: x[1], reverse=True)
+        for search_key, count in sorted_analytics:
+            if count > 0:
+                print(f"  🏆 {search_key}: {count} jobs")
+        
+        return final_jobs, search_analytics
     
     def store_jobs_in_database(
         self, 
@@ -276,12 +289,14 @@ class JobScrapingService:
         """Scrape multiple companies in bulk."""
         
         # Create scraping run record
+        start_time = datetime.now(timezone.utc)
         scraping_run = ScrapingRun(
             run_type="bulk_manual",
             status="running",
             companies_scraped=request.company_names,
             sites_used=request.sites,
-            search_parameters=request.dict()
+            search_parameters=request.model_dump(),
+            started_at=start_time
         )
         db.add(scraping_run)
         db.commit()
@@ -289,6 +304,7 @@ class JobScrapingService:
         total_jobs_found = 0
         total_new_jobs = 0
         total_duplicates = 0
+        all_company_analytics = {}
         
         try:
             for company_name in request.company_names:
@@ -311,7 +327,7 @@ class JobScrapingService:
                     db.commit()
                 
                 # Scrape jobs for this company
-                jobs = await self.scrape_company_jobs(
+                jobs, company_analytics = await self.scrape_company_jobs(
                     company_name=company_name,
                     search_terms=request.search_terms,
                     sites=request.sites,
@@ -320,6 +336,9 @@ class JobScrapingService:
                     hours_old=request.hours_old,
                     comprehensive_terms=getattr(request, 'comprehensive_terms', None)
                 )
+                
+                # Store analytics for this company
+                all_company_analytics[company_name] = company_analytics
                 
                 if jobs:
                     # Store jobs in database
@@ -349,10 +368,11 @@ class JobScrapingService:
             # Update scraping run with results
             scraping_run.status = "completed"
             scraping_run.completed_at = datetime.now(timezone.utc)
-            scraping_run.duration_seconds = int((scraping_run.completed_at - scraping_run.started_at).total_seconds())
+            scraping_run.duration_seconds = int((scraping_run.completed_at - start_time).total_seconds())
             scraping_run.total_jobs_found = total_jobs_found
             scraping_run.new_jobs_added = total_new_jobs
             scraping_run.duplicate_jobs_skipped = total_duplicates
+            scraping_run.search_analytics = all_company_analytics
             
             db.commit()
             
@@ -365,6 +385,8 @@ class JobScrapingService:
             scraping_run.status = "failed"
             scraping_run.error_message = str(e)
             scraping_run.completed_at = datetime.now(timezone.utc)
+            scraping_run.duration_seconds = int((datetime.now(timezone.utc) - start_time).total_seconds())
+            scraping_run.search_analytics = all_company_analytics
             db.commit()
             print(f"❌ Scraping failed: {str(e)}")
             raise

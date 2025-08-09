@@ -209,7 +209,25 @@ Remote</textarea>
                 if (response.ok) {
                     // Success
                     results.className = 'results success';
-                    results.textContent = `🎉 Scraping Completed Successfully!
+                    
+                    // Build analytics display
+                    let analyticsHtml = '';
+                    if (data.search_analytics) {
+                        analyticsHtml = '\n\n📊 SEARCH TERM PERFORMANCE ANALYTICS:\n';
+                        for (const [company, analytics] of Object.entries(data.search_analytics)) {
+                            analyticsHtml += `\n🏢 ${company.toUpperCase()}:\n`;
+                            const sortedTerms = Object.entries(analytics)
+                                .filter(([term, count]) => count > 0)
+                                .sort((a, b) => b[1] - a[1])
+                                .slice(0, 10); // Top 10 performing terms
+                            
+                            sortedTerms.forEach(([term, count]) => {
+                                analyticsHtml += `  🏆 ${term}: ${count} jobs\n`;
+                            });
+                        }
+                    }
+                    
+                    results.innerHTML = `🎉 Scraping Completed Successfully!
 
 📊 Results Summary:
 • Total jobs found: ${data.total_jobs_found}
@@ -217,8 +235,24 @@ Remote</textarea>
 • Duplicates skipped: ${data.duplicate_jobs_skipped}
 • Duration: ${data.duration_seconds} seconds
 • Status: ${data.status}
+${analyticsHtml}
 
-🔍 You can now search these jobs instantly using the local search!`;
+🔍 You can now search these jobs instantly using the local search!
+
+<button onclick="saveAnalytics()" style="margin-top: 15px; padding: 10px 20px; background: #28a745; color: white; border: none; border-radius: 5px; cursor: pointer;">💾 Save Analytics Report</button>`;
+                    
+                    // Store analytics globally for saving
+                    window.lastScrapingAnalytics = {
+                        timestamp: new Date().toISOString(),
+                        companies: data.companies_scraped,
+                        summary: {
+                            total_jobs_found: data.total_jobs_found,
+                            new_jobs_added: data.new_jobs_added,
+                            duplicates_skipped: data.duplicate_jobs_skipped,
+                            duration_seconds: data.duration_seconds
+                        },
+                        search_analytics: data.search_analytics
+                    };
                 } else {
                     // Error
                     results.className = 'results error';
@@ -237,6 +271,90 @@ python backend/main.py`;
                 button.textContent = '🚀 Start Scraping';
             }
         });
+        
+        // Analytics management functions
+        function saveAnalytics() {
+            if (!window.lastScrapingAnalytics) {
+                alert('No analytics data available to save');
+                return;
+            }
+            
+            // Save to localStorage
+            const savedAnalytics = JSON.parse(localStorage.getItem('scrapingAnalytics') || '[]');
+            savedAnalytics.push(window.lastScrapingAnalytics);
+            
+            // Keep only last 20 entries
+            if (savedAnalytics.length > 20) {
+                savedAnalytics.splice(0, savedAnalytics.length - 20);
+            }
+            
+            localStorage.setItem('scrapingAnalytics', JSON.stringify(savedAnalytics));
+            
+            // Also download as JSON file
+            const dataStr = JSON.stringify(window.lastScrapingAnalytics, null, 2);
+            const dataBlob = new Blob([dataStr], {type: 'application/json'});
+            const url = URL.createObjectURL(dataBlob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `scraping-analytics-${new Date().toISOString().split('T')[0]}.json`;
+            link.click();
+            URL.revokeObjectURL(url);
+            
+            alert('✅ Analytics saved to localStorage and downloaded as JSON file!');
+        }
+        
+        function viewSavedAnalytics() {
+            const savedAnalytics = JSON.parse(localStorage.getItem('scrapingAnalytics') || '[]');
+            if (savedAnalytics.length === 0) {
+                alert('No saved analytics found');
+                return;
+            }
+            
+            let displayHtml = '<h2>📊 Saved Analytics History</h2>';
+            savedAnalytics.reverse().forEach((analytics, index) => {
+                const date = new Date(analytics.timestamp).toLocaleDateString();
+                displayHtml += `
+                    <div style="border: 1px solid #ddd; padding: 15px; margin: 10px 0; border-radius: 5px;">
+                        <h3>${date} - Companies: ${analytics.companies.join(', ')}</h3>
+                        <p>New Jobs: ${analytics.summary.new_jobs_added}, Total: ${analytics.summary.total_jobs_found}</p>
+                        <details>
+                            <summary>View Search Term Performance</summary>
+                            <pre>${JSON.stringify(analytics.search_analytics, null, 2)}</pre>
+                        </details>
+                    </div>
+                `;
+            });
+            
+            const newWindow = window.open('', '_blank');
+            newWindow.document.write(`
+                <html>
+                    <head><title>Scraping Analytics History</title></head>
+                    <body style="font-family: Arial, sans-serif; padding: 20px;">
+                        ${displayHtml}
+                        <button onclick="window.close()" style="margin-top: 20px; padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 5px;">Close</button>
+                    </body>
+                </html>
+            `);
+        }
+        
+        // Add analytics buttons to the page
+        document.addEventListener('DOMContentLoaded', function() {
+            const form = document.getElementById('scrapingForm');
+            const analyticsButtons = document.createElement('div');
+            analyticsButtons.style.marginTop = '20px';
+            analyticsButtons.innerHTML = `
+                <button type="button" onclick="viewSavedAnalytics()" style="background: #17a2b8; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; margin-right: 10px;">📈 View Analytics History</button>
+                <button type="button" onclick="clearAnalytics()" style="background: #dc3545; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">🗑️ Clear History</button>
+            `;
+            form.appendChild(analyticsButtons);
+        });
+        
+        function clearAnalytics() {
+            if (confirm('Are you sure you want to clear all saved analytics?')) {
+                localStorage.removeItem('scrapingAnalytics');
+                alert('✅ Analytics history cleared');
+            }
+        }
     </script>
 </body>
 </html>

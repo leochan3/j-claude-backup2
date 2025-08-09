@@ -268,6 +268,9 @@ class ScrapingRun(Base):
     # Error handling
     error_message = Column(Text)
     
+    # Analytics data
+    search_analytics = Column(JSON)  # Store search term performance data
+    
     # Relationships
     jobs = relationship("ScrapedJob", back_populates="scraping_run")
 

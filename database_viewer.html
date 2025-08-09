@@ -177,9 +177,11 @@
 
     <script>
         // Auto-detect API base URL based on current environment
-        const API_BASE = window.location.hostname === 'localhost' 
-            ? 'http://localhost:8000' 
-            : `https://${window.location.hostname}`;
+        const isProduction = window.location.hostname.includes('render.com') || 
+                            window.location.hostname.includes('onrender.com');
+        const API_BASE = isProduction 
+            ? 'https://j-claude-backup2-1.onrender.com'
+            : 'http://localhost:8000';
 
         async function loadStats() {
             const statsGrid = document.getElementById('statsGrid');
