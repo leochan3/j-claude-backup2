@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Admin Users Tab</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            max-width: 1200px; 
+            margin: 0 auto; 
+            padding: 20px; 
+            background: #f5f5f5;
+        }
+        .container { 
+            background: white; 
+            padding: 30px; 
+            border-radius: 10px; 
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .test-result {
+            margin: 10px 0;
+            padding: 15px;
+            border-radius: 5px;
+            font-family: monospace;
+        }
+        .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        button { 
+            background: #007bff; 
+            color: white; 
+            border: none; 
+            padding: 10px 20px; 
+            border-radius: 5px; 
+            cursor: pointer; 
+            margin: 5px;
+        }
+        button:hover { background: #0056b3; }
+        iframe { 
+            width: 100%; 
+            height: 600px; 
+            border: 1px solid #ddd; 
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Admin Users Tab Test</h1>
+        
+        <button onclick="testAdminPage()">🏠 Test Admin Dashboard</button>
+        <button onclick="testUserManagement()">👥 Test User Management Direct</button>
+        <button onclick="testUserManagementInIframe()">🖼️ Test User Management in iframe</button>
+        <button onclick="clearResults()">🗑️ Clear Results</button>
+        
+        <div id="results"></div>
+        
+        <h2>📋 Live iframe Test:</h2>
+        <iframe id="test-iframe" src="about:blank"></iframe>
+    </div>
+
+    <script>
+        // Environment detection
+        const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+        const BASE_URL = isLocalhost ? 'http://localhost:8000' : `https://${window.location.hostname}`;
+        
+        function addResult(message, type = 'info') {
+            const results = document.getElementById('results');
+            const div = document.createElement('div');
+            div.className = `test-result ${type}`;
+            div.innerHTML = `<strong>${new Date().toLocaleTimeString()}:</strong> ${message}`;
+            results.appendChild(div);
+            results.scrollTop = results.scrollHeight;
+        }
+        
+        function clearResults() {
+            document.getElementById('results').innerHTML = '';
+        }
+        
+        async function testAdminPage() {
+            addResult('🔄 Testing admin dashboard...', 'info');
+            try {
+                const response = await fetch(`${BASE_URL}/admin`);
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                const html = await response.text();
+                
+                // Check if it contains users tab
+                if (html.includes('data-tab="users"')) {
+                    addResult('✅ Admin dashboard has users tab', 'success');
+                } else {
+                    addResult('❌ Admin dashboard missing users tab', 'error');
+                }
+                
+                // Check if it has user management URL
+                if (html.includes('/user-management')) {
+                    addResult('✅ Admin dashboard configured for user management', 'success');
+                } else {
+                    addResult('❌ Admin dashboard not configured for user management', 'error');
+                }
+                
+            } catch (error) {
+                addResult(`❌ Admin dashboard test failed: ${error.message}`, 'error');
+            }
+        }
+        
+        async function testUserManagement() {
+            addResult('🔄 Testing user management page...', 'info');
+            try {
+                const response = await fetch(`${BASE_URL}/user-management`);
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                addResult('✅ User management page loads', 'success');
+                
+                // Test the API endpoint it uses
+                const apiResponse = await fetch(`${BASE_URL}/admin/users-stats-public`);
+                if (!apiResponse.ok) {
+                    throw new Error(`API HTTP ${apiResponse.status}: ${apiResponse.statusText}`);
+                }
+                const data = await apiResponse.json();
+                addResult(`✅ User stats API works: ${data.stats.total_users} users`, 'success');
+                
+            } catch (error) {
+                addResult(`❌ User management test failed: ${error.message}`, 'error');
+            }
+        }
+        
+        function testUserManagementInIframe() {
+            addResult('🔄 Testing user management in iframe...', 'info');
+            const iframe = document.getElementById('test-iframe');
+            
+            iframe.onload = function() {
+                addResult('✅ User management loaded in iframe', 'success');
+                
+                // Try to access iframe content (may fail due to CORS)
+                try {
+                    const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+                    if (iframeDoc.title.includes('User Management')) {
+                        addResult('✅ iframe content accessible and correct', 'success');
+                    }
+                } catch (e) {
+                    addResult('ℹ️ iframe content not accessible (normal due to CORS)', 'info');
+                }
+            };
+            
+            iframe.onerror = function() {
+                addResult('❌ iframe failed to load user management', 'error');
+            };
+            
+            iframe.src = `${BASE_URL}/user-management`;
+        }
+        
+        // Auto-test on load
+        window.onload = () => {
+            addResult(`🌍 Environment: ${isLocalhost ? 'Local' : 'Production'}`, 'info');
+            addResult(`🔗 Base URL: ${BASE_URL}`, 'info');
+            setTimeout(testAdminPage, 500);
+        };
+    </script>
+</body>
+</html>
