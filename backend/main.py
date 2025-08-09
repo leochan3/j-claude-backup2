@@ -9,7 +9,7 @@ from jobspy import scrape_jobs
 import uvicorn
 import requests
 import io
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import re
 import os
 from dotenv import load_dotenv
@@ -607,7 +607,7 @@ async def get_users_stats_public(db: Session = Depends(get_db)):
         active_users = db.query(User).filter(User.is_active == True).count()
         
         # Recent registrations (last 30 days)
-        thirty_days_ago = datetime.now() - timedelta(days=30)
+        thirty_days_ago = datetime.now(timezone.utc) - timedelta(days=30)
         recent_registrations = db.query(User).filter(
             User.created_at >= thirty_days_ago
         ).count()
@@ -2144,7 +2144,7 @@ async def get_database_stats(
         total_jobs = db.query(ScrapedJob).filter(ScrapedJob.is_active == True).count()
         jobs_last_30_days = db.query(ScrapedJob).filter(
             ScrapedJob.is_active == True,
-            ScrapedJob.date_scraped >= datetime.now() - timedelta(days=30)
+            ScrapedJob.date_scraped >= datetime.now(timezone.utc) - timedelta(days=30)
         ).count()
         
         # Count companies
@@ -2197,7 +2197,7 @@ async def get_database_stats_public(db: Session = Depends(get_db)):
         total_jobs = db.query(ScrapedJob).filter(ScrapedJob.is_active == True).count()
         jobs_last_30_days = db.query(ScrapedJob).filter(
             ScrapedJob.is_active == True,
-            ScrapedJob.date_scraped >= datetime.now() - timedelta(days=30)
+            ScrapedJob.date_scraped >= datetime.now(timezone.utc) - timedelta(days=30)
         ).count()
         
         # Count companies

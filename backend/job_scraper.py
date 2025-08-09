@@ -8,7 +8,7 @@ deduplication, and storage in the local database.
 import asyncio
 import time
 import re
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List, Dict, Any, Optional, Tuple
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_
@@ -387,7 +387,7 @@ class JobScrapingService:
         
         # Date filter
         if days_old:
-            cutoff_date = datetime.now() - timedelta(days=days_old)
+            cutoff_date = datetime.now(timezone.utc) - timedelta(days=days_old)
             query = query.filter(
                 or_(
                     ScrapedJob.date_posted >= cutoff_date,
