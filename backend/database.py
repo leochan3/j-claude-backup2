@@ -9,11 +9,15 @@ import os
 # Database configuration: Use PostgreSQL in production, SQLite in development
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///../jobsearch.db")
 
+# Convert postgresql:// to postgresql+psycopg:// to explicitly use psycopg3
+if DATABASE_URL.startswith("postgresql://"):
+    DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+psycopg://", 1)
+
 # SQLite-specific connection args only for SQLite databases
 if DATABASE_URL.startswith("sqlite"):
     engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 else:
-    # PostgreSQL doesn't need SQLite-specific connection args
+    # PostgreSQL with psycopg3
     engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
