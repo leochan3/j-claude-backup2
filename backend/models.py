@@ -334,5 +334,6 @@ class BulkScrapingRequest(BaseModel):
     search_terms: Optional[List[str]] = []
     sites: Optional[List[str]] = ["indeed"]
     locations: Optional[List[str]] = ["USA"]
-    results_per_company: Optional[int] = 100
-    hours_old: Optional[int] = 720  # 30 days
+    results_per_company: Optional[int] = 1000
+    hours_old: Optional[int] = 72  # 3 days
+    comprehensive_terms: Optional[List[str]] = []

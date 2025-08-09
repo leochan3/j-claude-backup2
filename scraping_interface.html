@@ -65,7 +65,34 @@
             
             <div class="form-group">
                 <label for="searchTerms">Search Terms (one per line):</label>
-                <textarea id="searchTerms" placeholder="Leave EMPTY for comprehensive search (6 common job types)&#10;OR type 'all' for truly generic search&#10;OR specify custom terms:&#10;software engineer&#10;data scientist&#10;product manager"></textarea>
+                <textarea id="searchTerms" placeholder="Leave EMPTY for default comprehensive search&#10;OR type 'all' to use comprehensive term list below&#10;OR specify custom terms:&#10;software engineer&#10;data scientist&#10;product manager">all</textarea>
+            </div>
+            
+            <div class="form-group">
+                <label for="comprehensiveTerms">Comprehensive Search Terms (used when 'all' is selected):</label>
+                <textarea id="comprehensiveTerms" placeholder="Edit these terms to customize comprehensive search...">tech
+analyst
+manager
+product
+engineer
+market
+finance
+business
+associate
+senior
+director
+president
+lead
+data
+science
+software
+cloud
+developer
+staff
+program
+quality
+security
+specialist</textarea>
             </div>
             
             <div class="form-group">
@@ -85,12 +112,12 @@ Remote</textarea>
             
             <div class="form-group">
                 <label for="resultsPerCompany">Results per Company:</label>
-                <input type="number" id="resultsPerCompany" value="50" min="10" max="500">
+                <input type="number" id="resultsPerCompany" value="1000" min="10" max="1000">
             </div>
             
             <div class="form-group">
-                <label for="hoursOld">Max Hours Old (720 = 30 days):</label>
-                <input type="number" id="hoursOld" value="720" min="24" max="8760">
+                <label for="hoursOld">Max Hours Old (72 = 3 days):</label>
+                <input type="number" id="hoursOld" value="72" min="24" max="8760">
             </div>
             
             <button type="submit" id="scrapeButton">🚀 Start Scraping</button>
@@ -113,10 +140,18 @@ Remote</textarea>
                 .map(c => c.trim())
                 .filter(c => c);
             
-            const searchTerms = document.getElementById('searchTerms').value
+            let searchTerms = document.getElementById('searchTerms').value
                 .split('\n')
                 .map(t => t.trim())
                 .filter(t => t);
+            
+            // Handle 'all' case - use comprehensive terms
+            if (searchTerms.length === 1 && searchTerms[0].toLowerCase() === 'all') {
+                searchTerms = document.getElementById('comprehensiveTerms').value
+                    .split('\n')
+                    .map(t => t.trim())
+                    .filter(t => t);
+            }
             
             const locations = document.getElementById('locations').value
                 .split('\n')
@@ -142,7 +177,11 @@ Remote</textarea>
                 sites: sites,
                 locations: locations,
                 results_per_company: resultsPerCompany,
-                hours_old: hoursOld
+                hours_old: hoursOld,
+                comprehensive_terms: document.getElementById('comprehensiveTerms').value
+                    .split('\n')
+                    .map(t => t.trim())
+                    .filter(t => t)
             };
             
             // Show loading state

@@ -70,8 +70,9 @@ class JobScrapingService:
         search_terms: List[str] = None,
         sites: List[str] = None,
         locations: List[str] = None,
-        results_wanted: int = 100,
-        hours_old: int = 720  # 30 days
+        results_wanted: int = 1000,
+        hours_old: int = 72,  # 3 days
+        comprehensive_terms: List[str] = None
     ) -> List[Dict[str, Any]]:
         """Scrape jobs for a specific company."""
         
@@ -79,12 +80,21 @@ class JobScrapingService:
             # If no search terms provided, use comprehensive default terms for better coverage
             search_terms = ["software engineer", "developer", "data scientist", "product manager", "analyst", "designer"]
         elif len(search_terms) == 1 and search_terms[0].lower().strip() in ["all", "*", "all jobs"]:
-            # Special case: user explicitly wants to search for all jobs (just company name)
-            search_terms = [""]
+            # Use comprehensive terms from frontend, or default comprehensive terms
+            if comprehensive_terms:
+                search_terms = comprehensive_terms
+            else:
+                # Fallback to default comprehensive terms
+                search_terms = [
+                    "tech", "analyst", "manager", "product", "engineer", "market", 
+                    "finance", "business", "associate", "senior", "director", 
+                    "president", "lead", "data", "science", "software", "cloud", 
+                    "developer", "staff", "program", "quality", "security", "specialist"
+                ]
         if not sites:
             sites = ["indeed"]
         if not locations:
-            locations = ["USA"]
+            locations = ["USA", "Remote", "United States"]
         
         all_jobs = []
         
@@ -115,13 +125,12 @@ class JobScrapingService:
                     )
                     
                     if jobs_df is not None and not jobs_df.empty:
-                        # Filter jobs to only include the target company
+                        # Filter jobs to include the target company (flexible matching)
                         company_filter = company_name.lower().strip()
-                        jobs_df = jobs_df[
-                            jobs_df['company'].str.lower().str.strip().str.contains(
-                                company_filter, na=False, regex=False
-                            )
-                        ]
+                        # Use broader matching for better coverage - include partial matches
+                        company_parts = company_filter.split()
+                        mask = jobs_df['company'].str.lower().str.contains('|'.join(company_parts), na=False, regex=True)
+                        jobs_df = jobs_df[mask]
                         
                         if not jobs_df.empty:
                             jobs_list = jobs_df.to_dict('records')
@@ -147,7 +156,7 @@ class JobScrapingService:
                     continue
                 
                 # Small delay between requests to be respectful
-                await asyncio.sleep(1)
+                await asyncio.sleep(0.5)
         
         # Remove duplicates based on job_url
         unique_jobs = {}
@@ -308,7 +317,8 @@ class JobScrapingService:
                     sites=request.sites,
                     locations=request.locations,
                     results_wanted=request.results_per_company,
-                    hours_old=request.hours_old
+                    hours_old=request.hours_old,
+                    comprehensive_terms=getattr(request, 'comprehensive_terms', None)
                 )
                 
                 if jobs:
