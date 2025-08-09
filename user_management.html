@@ -302,11 +302,14 @@
     </div>
 
     <script>
-                const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-        const API_BASE = isLocalhost ? 'http://localhost:8000' : 'https://j-claude-backup2-1.onrender.com';
+                const isProduction = window.location.hostname.includes('render.com') || 
+                            window.location.hostname.includes('onrender.com');
+        const API_BASE = isProduction 
+            ? 'https://j-claude-backup2-1.onrender.com'
+            : 'http://localhost:8000';
         
         // Debug logging for environment detection
-        console.log(`🌍 User Management Environment: ${isLocalhost ? 'Local Development' : 'Production'}`);
+        console.log(`🌍 User Management Environment: ${isProduction ? 'Production' : 'Local Development'}`);
         console.log(`🔗 User Management API Base URL: ${API_BASE}`);
         let allUsers = [];
         let userStats = {};
@@ -356,16 +359,18 @@
                 console.error('❌ Error loading user stats:', error);
                 console.error('🔍 Full error details:', error.stack || error);
                 console.log('🌐 Current hostname:', window.location.hostname);
+                console.log('🌍 Is production:', isProduction);
                 console.log('🔗 Attempted URL:', `${API_BASE}/admin/users-stats-public`);
+                console.log('📍 Page context:', window.parent !== window ? 'Inside iframe' : 'Standalone page');
                 
                 statsGrid.innerHTML = `
                     <div class="error">
                         ❌ Error loading user stats: ${error.message}
                         <br><br>
-                        🌐 Environment: ${isLocalhost ? 'Local' : 'Production'}<br>
+                        🌐 Environment: ${isProduction ? 'Production' : 'Local'}<br>
                         🔗 API URL: ${API_BASE}<br>
                         📍 Current page: ${window.location.href}<br><br>
-                        ${isLocalhost ? 'Make sure the server is running: <code>python backend/main.py</code>' : 'Check browser console for more details.'}
+                        ${!isProduction ? 'Make sure the server is running: <code>python backend/main.py</code>' : 'Check browser console for more details.'}
                     </div>
                 `;
             }
@@ -398,7 +403,7 @@
                     <div class="error">
                         ❌ Error loading users: ${error.message}
                         <br><br>
-                        Make sure the server is running: <code>python backend/main.py</code>
+                        ${!isProduction ? 'Make sure the server is running: <code>python backend/main.py</code>' : 'Check browser console for network errors.'}
                     </div>
                 `;
                 tableBody.innerHTML = `<tr><td colspan="8">${errorHtml}</td></tr>`;

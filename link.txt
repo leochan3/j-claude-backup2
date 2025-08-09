@@ -1,0 +1,13 @@
+Main App:       http://localhosrt:8000/app
+Database:       http://localhost:8000/database-viewer
+Scraping:       http://localhost:8000/scraping-interface
+Users:          http://localhost:8000/user-management
+Testing:        http://localhost:8000/test-dashboard
+API Docs:       http://localhost:8000/docs
+
+Main App:       https://j-claude-backup2-1.onrender.com/app
+Database:       https://j-claude-backup2-1.onrender.com/database-viewer
+Scraping:       https://j-claude-backup2-1.onrender.com/scraping-interface
+Users:          https://j-claude-backup2-1.onrender.com/user-management
+Testing:        https://j-claude-backup2-1.onrender.com/test-dashboard
+API Docs:       https://j-claude-backup2-1.onrender.com/docs
