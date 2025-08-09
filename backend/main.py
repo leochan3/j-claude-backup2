@@ -456,12 +456,26 @@ async def get_all_users_public(db: Session = Depends(get_db)):
     try:
         users = db.query(User).order_by(User.created_at.desc()).all()
         
+        # Calculate 7 days ago for recent activity
+        seven_days_ago = datetime.now(timezone.utc) - timedelta(days=7)
+        
         user_list = []
         for user in users:
-            # Get user statistics
+            # Get user statistics (total)
             saved_jobs_count = db.query(UserSavedJob).filter(UserSavedJob.user_id == user.id).count()
             search_history_count = db.query(SearchHistory).filter(SearchHistory.user_id == user.id).count()
             saved_searches_count = db.query(SavedSearch).filter(SavedSearch.user_id == user.id).count()
+            
+            # Get recent activity (last 7 days)
+            recent_saved_jobs = db.query(UserSavedJob).filter(
+                UserSavedJob.user_id == user.id,
+                UserSavedJob.saved_at >= seven_days_ago
+            ).count()
+            
+            recent_searches = db.query(SearchHistory).filter(
+                SearchHistory.user_id == user.id,
+                SearchHistory.searched_at >= seven_days_ago
+            ).count()
             
             user_info = {
                 "id": user.id,
@@ -474,7 +488,9 @@ async def get_all_users_public(db: Session = Depends(get_db)):
                 "stats": {
                     "saved_jobs_count": saved_jobs_count,
                     "search_history_count": search_history_count,
-                    "saved_searches_count": saved_searches_count
+                    "saved_searches_count": saved_searches_count,
+                    "recent_saved_jobs_7d": recent_saved_jobs,
+                    "recent_searches_7d": recent_searches
                 }
             }
             user_list.append(user_info)
@@ -483,7 +499,7 @@ async def get_all_users_public(db: Session = Depends(get_db)):
             "success": True,
             "users": user_list,
             "total_count": len(user_list),
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
         
     except Exception as e:
@@ -617,13 +633,149 @@ async def get_users_stats_public(db: Session = Depends(get_db)):
         users_with_search_history = db.query(SearchHistory.user_id).distinct().count()
         
         # Most active users (by saved jobs)
-        from sqlalchemy import func
+        from sqlalchemy import func, text
         most_active_users = db.query(
             User.username,
             func.count(UserSavedJob.id).label('saved_jobs_count')
         ).join(UserSavedJob, User.id == UserSavedJob.user_id).group_by(
             User.id, User.username
         ).order_by(func.count(UserSavedJob.id).desc()).limit(5).all()
+        
+        # Database-specific date queries - check engine dialect
+        is_postgres = str(db.bind.dialect.name) == 'postgresql'
+        
+        if is_postgres:
+            # PostgreSQL syntax
+            daily_registrations = db.execute(text("""
+                SELECT created_at::date as date, COUNT(*) as count
+                FROM users 
+                WHERE created_at >= :thirty_days_ago
+                GROUP BY created_at::date
+                ORDER BY date DESC
+            """), {"thirty_days_ago": thirty_days_ago}).fetchall()
+            
+            daily_searches = db.execute(text("""
+                SELECT searched_at::date as date, COUNT(*) as count
+                FROM search_history 
+                WHERE searched_at >= :thirty_days_ago
+                GROUP BY searched_at::date
+                ORDER BY date DESC
+            """), {"thirty_days_ago": thirty_days_ago}).fetchall()
+            
+            daily_saved_jobs = db.execute(text("""
+                SELECT saved_at::date as date, COUNT(*) as count
+                FROM user_saved_jobs 
+                WHERE saved_at >= :thirty_days_ago
+                GROUP BY saved_at::date
+                ORDER BY date DESC
+            """), {"thirty_days_ago": thirty_days_ago}).fetchall()
+        else:
+            # SQLite syntax
+            daily_registrations = db.execute(text("""
+                SELECT DATE(created_at) as date, COUNT(*) as count
+                FROM users 
+                WHERE created_at >= :thirty_days_ago
+                GROUP BY DATE(created_at)
+                ORDER BY date DESC
+            """), {"thirty_days_ago": thirty_days_ago}).fetchall()
+            
+            daily_searches = db.execute(text("""
+                SELECT DATE(searched_at) as date, COUNT(*) as count
+                FROM search_history 
+                WHERE searched_at >= :thirty_days_ago
+                GROUP BY DATE(searched_at)
+                ORDER BY date DESC
+            """), {"thirty_days_ago": thirty_days_ago}).fetchall()
+            
+            daily_saved_jobs = db.execute(text("""
+                SELECT DATE(saved_at) as date, COUNT(*) as count
+                FROM user_saved_jobs 
+                WHERE saved_at >= :thirty_days_ago
+                GROUP BY DATE(saved_at)
+                ORDER BY date DESC
+            """), {"thirty_days_ago": thirty_days_ago}).fetchall()
+        
+        # Top search terms (last 30 days)
+        top_search_terms = db.execute(text("""
+            SELECT search_term, COUNT(*) as count
+            FROM search_history 
+            WHERE searched_at >= :thirty_days_ago
+            AND search_term IS NOT NULL
+            GROUP BY search_term
+            ORDER BY count DESC
+            LIMIT 10
+        """), {"thirty_days_ago": thirty_days_ago}).fetchall()
+        
+        # Top companies being saved (last 30 days) - database-specific JSON extraction
+        if is_postgres:
+            companies_query = """
+                SELECT job_data->>'company' as company, COUNT(*) as count
+                FROM user_saved_jobs
+                WHERE saved_at >= :thirty_days_ago
+                AND job_data->>'company' IS NOT NULL
+                GROUP BY job_data->>'company'
+                ORDER BY count DESC
+                LIMIT 10
+            """
+        else:
+            companies_query = """
+                SELECT JSON_EXTRACT(job_data, '$.company') as company, COUNT(*) as count
+                FROM user_saved_jobs
+                WHERE saved_at >= :thirty_days_ago
+                AND JSON_EXTRACT(job_data, '$.company') IS NOT NULL
+                GROUP BY JSON_EXTRACT(job_data, '$.company')
+                ORDER BY count DESC
+                LIMIT 10
+            """
+        
+        top_saved_companies = db.execute(text(companies_query), {"thirty_days_ago": thirty_days_ago}).fetchall()
+        
+        # Weekly usage patterns (searches by day of week) - database-specific
+        if is_postgres:
+            weekly_patterns = db.execute(text("""
+                SELECT 
+                    EXTRACT(DOW FROM searched_at)::integer as day_of_week,
+                    COUNT(*) as count
+                FROM search_history 
+                WHERE searched_at >= :thirty_days_ago
+                GROUP BY EXTRACT(DOW FROM searched_at)
+                ORDER BY day_of_week
+            """), {"thirty_days_ago": thirty_days_ago}).fetchall()
+        else:
+            # SQLite uses strftime for day of week (0=Sunday)
+            weekly_patterns = db.execute(text("""
+                SELECT 
+                    CAST(strftime('%w', searched_at) AS INTEGER) as day_of_week,
+                    COUNT(*) as count
+                FROM search_history 
+                WHERE searched_at >= :thirty_days_ago
+                GROUP BY strftime('%w', searched_at)
+                ORDER BY day_of_week
+            """), {"thirty_days_ago": thirty_days_ago}).fetchall()
+        
+        # Search-to-save conversion rate
+        total_searches_30d = db.query(SearchHistory).filter(
+            SearchHistory.searched_at >= thirty_days_ago
+        ).count()
+        total_saves_30d = db.query(UserSavedJob).filter(
+            UserSavedJob.saved_at >= thirty_days_ago
+        ).count()
+        
+        conversion_rate = (total_saves_30d / total_searches_30d * 100) if total_searches_30d > 0 else 0
+        
+        # Convert to list of dicts for JSON response
+        daily_reg_data = [{"date": str(row.date), "count": row.count} for row in daily_registrations]
+        daily_search_data = [{"date": str(row.date), "count": row.count} for row in daily_searches]
+        daily_jobs_data = [{"date": str(row.date), "count": row.count} for row in daily_saved_jobs]
+        top_terms_data = [{"term": row.search_term, "count": row.count} for row in top_search_terms]
+        top_companies_data = [{"company": row.company, "count": row.count} for row in top_saved_companies]
+        
+        # Convert day of week numbers to names
+        day_names = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+        weekly_data = [
+            {"day": day_names[int(row.day_of_week)], "count": row.count} 
+            for row in weekly_patterns
+        ]
         
         return {
             "success": True,
@@ -633,12 +785,21 @@ async def get_users_stats_public(db: Session = Depends(get_db)):
                 "recent_registrations": recent_registrations,
                 "users_with_saved_jobs": users_with_saved_jobs,
                 "users_with_search_history": users_with_search_history,
+                "daily_registrations": daily_reg_data,
+                "daily_searches": daily_search_data,
+                "daily_saved_jobs": daily_jobs_data,
+                "top_search_terms": top_terms_data,
+                "top_saved_companies": top_companies_data,
+                "weekly_usage_patterns": weekly_data,
+                "conversion_rate": round(conversion_rate, 2),
+                "total_searches_30d": total_searches_30d,
+                "total_saves_30d": total_saves_30d,
                 "most_active_users": [
                     {"username": username, "saved_jobs_count": count}
                     for username, count in most_active_users
                 ]
             },
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
         
     except Exception as e:

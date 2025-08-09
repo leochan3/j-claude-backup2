@@ -277,11 +277,13 @@
                     <th>Registered</th>
                     <th>Saved Jobs</th>
                     <th>Searches</th>
+                    <th>7d Jobs</th>
+                    <th>7d Searches</th>
                     <th>Actions</th>
                 </tr>
             </thead>
             <tbody id="usersTableBody">
-                <tr><td colspan="8" class="loading">Loading users...</td></tr>
+                <tr><td colspan="10" class="loading">Loading users...</td></tr>
             </tbody>
         </table>
         
@@ -346,12 +348,56 @@
                         <div class="stat-label">New (30 days)</div>
                     </div>
                     <div class="stat-card">
-                        <div class="stat-number">${userStats.users_with_saved_jobs}</div>
-                        <div class="stat-label">With Saved Jobs</div>
+                        <div class="stat-number">${userStats.total_searches_30d || 0}</div>
+                        <div class="stat-label">Searches (30d)</div>
                     </div>
                     <div class="stat-card">
-                        <div class="stat-number">${userStats.users_with_search_history}</div>
-                        <div class="stat-label">With Search History</div>
+                        <div class="stat-number">${userStats.total_saves_30d || 0}</div>
+                        <div class="stat-label">Jobs Saved (30d)</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">${userStats.conversion_rate || 0}%</div>
+                        <div class="stat-label">Search→Save Rate</div>
+                    </div>
+                `;
+                
+                // Add charts section
+                statsGrid.innerHTML += `
+                    <div class="stat-card" style="grid-column: span 2; min-height: 200px;">
+                        <div class="stat-label" style="margin-bottom: 15px;">📊 Daily Registrations (Last 30 Days)</div>
+                        <div style="height: 150px; overflow-x: auto;">
+                            ${createActivityChart(userStats.daily_registrations, '#007bff', 'users')}
+                        </div>
+                    </div>
+                    <div class="stat-card" style="grid-column: span 2; min-height: 200px;">
+                        <div class="stat-label" style="margin-bottom: 15px;">🔍 Daily Searches (Last 30 Days)</div>
+                        <div style="height: 150px; overflow-x: auto;">
+                            ${createActivityChart(userStats.daily_searches, '#28a745', 'searches')}
+                        </div>
+                    </div>
+                    <div class="stat-card" style="grid-column: span 2; min-height: 200px;">
+                        <div class="stat-label" style="margin-bottom: 15px;">💼 Daily Jobs Saved (Last 30 Days)</div>
+                        <div style="height: 150px; overflow-x: auto;">
+                            ${createActivityChart(userStats.daily_saved_jobs, '#ffc107', 'jobs')}
+                        </div>
+                    </div>
+                    <div class="stat-card" style="grid-column: span 1; min-height: 250px;">
+                        <div class="stat-label" style="margin-bottom: 15px;">🔥 Top Search Terms</div>
+                        <div style="height: 200px; overflow-y: auto;">
+                            ${createTopListChart(userStats.top_search_terms, 'term', '#007bff')}
+                        </div>
+                    </div>
+                    <div class="stat-card" style="grid-column: span 1; min-height: 250px;">
+                        <div class="stat-label" style="margin-bottom: 15px;">🏢 Top Saved Companies</div>
+                        <div style="height: 200px; overflow-y: auto;">
+                            ${createTopListChart(userStats.top_saved_companies, 'company', '#28a745')}
+                        </div>
+                    </div>
+                    <div class="stat-card" style="grid-column: span 2; min-height: 200px;">
+                        <div class="stat-label" style="margin-bottom: 15px;">📅 Weekly Usage Patterns</div>
+                        <div style="height: 150px;">
+                            ${createWeeklyChart(userStats.weekly_usage_patterns)}
+                        </div>
                     </div>
                 `;
 
@@ -383,7 +429,7 @@
             const userCards = document.getElementById('userCards');
             
             section.style.display = 'block';
-            tableBody.innerHTML = '<tr><td colspan="8" class="loading">Loading users...</td></tr>';
+            tableBody.innerHTML = '<tr><td colspan="10" class="loading">Loading users...</td></tr>';
             userCards.innerHTML = '<div class="loading">Loading users...</div>';
 
             try {
@@ -406,7 +452,7 @@
                         ${!isProduction ? 'Make sure the server is running: <code>python backend/main.py</code>' : 'Check browser console for network errors.'}
                     </div>
                 `;
-                tableBody.innerHTML = `<tr><td colspan="8">${errorHtml}</td></tr>`;
+                tableBody.innerHTML = `<tr><td colspan="10">${errorHtml}</td></tr>`;
                 userCards.innerHTML = errorHtml;
             }
         }
@@ -417,7 +463,7 @@
             const userCards = document.getElementById('userCards');
 
             if (users.length === 0) {
-                tableBody.innerHTML = '<tr><td colspan="8" style="text-align: center;">No users found</td></tr>';
+                tableBody.innerHTML = '<tr><td colspan="10" style="text-align: center;">No users found</td></tr>';
                 userCards.innerHTML = '<div style="text-align: center;">No users found</div>';
                 return;
             }
@@ -434,6 +480,8 @@
                     <td>${formatDate(user.created_at)}</td>
                     <td>${user.stats.saved_jobs_count}</td>
                     <td>${user.stats.search_history_count}</td>
+                    <td><span style="color: ${user.stats.recent_saved_jobs_7d > 0 ? '#28a745' : '#6c757d'}; font-weight: bold;">${user.stats.recent_saved_jobs_7d}</span></td>
+                    <td><span style="color: ${user.stats.recent_searches_7d > 0 ? '#28a745' : '#6c757d'}; font-weight: bold;">${user.stats.recent_searches_7d}</span></td>
                     <td><button onclick="event.stopPropagation(); showUserDetails('${user.id}')" style="margin: 0;">View Details</button></td>
                 </tr>
             `).join('');
@@ -449,6 +497,7 @@
                         </span>
                         • ${user.stats.saved_jobs_count} saved jobs 
                         • ${user.stats.search_history_count} searches
+                        <br>• <strong>${user.stats.recent_saved_jobs_7d} jobs</strong> & <strong>${user.stats.recent_searches_7d} searches</strong> (7 days)
                         • Joined ${formatDate(user.created_at)}
                     </div>
                 </div>
@@ -667,6 +716,106 @@
                             </div>
                         `).join('')}
                     </div>
+                </div>
+            `;
+        }
+
+        // Create a generic activity chart for daily data
+        function createActivityChart(dailyData, color, label) {
+            if (!dailyData || dailyData.length === 0) {
+                return `<p style="text-align: center; color: #666; margin-top: 50px;">No ${label} data available</p>`;
+            }
+            
+            const maxCount = Math.max(...dailyData.map(d => d.count));
+            const chartHeight = 120;
+            
+            return `
+                <div style="display: flex; align-items: flex-end; height: ${chartHeight}px; gap: 2px; padding: 10px;">
+                    ${dailyData.slice(0, 15).reverse().map(day => {
+                        const barHeight = maxCount > 0 ? (day.count / maxCount) * (chartHeight - 20) : 0;
+                        const date = new Date(day.date);
+                        const shortDate = (date.getMonth() + 1) + '/' + date.getDate();
+                        
+                        return `
+                            <div style="display: flex; flex-direction: column; align-items: center; flex: 1; min-width: 30px;">
+                                <div style="font-size: 10px; margin-bottom: 2px; font-weight: bold; color: ${color};">
+                                    ${day.count}
+                                </div>
+                                <div style="
+                                    width: 100%; 
+                                    height: ${Math.max(barHeight, 2)}px; 
+                                    background: ${day.count > 0 ? color : '#e9ecef'}; 
+                                    border-radius: 2px 2px 0 0;
+                                    transition: all 0.3s ease;
+                                " title="${shortDate}: ${day.count} ${label}"></div>
+                                <div style="font-size: 9px; margin-top: 2px; color: #666; transform: rotate(-45deg); white-space: nowrap;">
+                                    ${shortDate}
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            `;
+        }
+        
+        // Create top items list visualization
+        function createTopListChart(data, keyField, color) {
+            if (!data || data.length === 0) {
+                return '<p style="text-align: center; color: #666; margin-top: 80px;">No data available</p>';
+            }
+            
+            const maxCount = Math.max(...data.map(d => d.count));
+            
+            return `
+                <div style="padding: 5px;">
+                    ${data.map((item, index) => {
+                        const percentage = maxCount > 0 ? (item.count / maxCount) * 100 : 0;
+                        return `
+                            <div style="margin-bottom: 8px; font-size: 12px;">
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
+                                    <span style="font-weight: bold; color: #333; max-width: 70%; overflow: hidden; text-overflow: ellipsis;">${item[keyField]}</span>
+                                    <span style="color: ${color}; font-weight: bold;">${item.count}</span>
+                                </div>
+                                <div style="width: 100%; height: 6px; background: #e9ecef; border-radius: 3px;">
+                                    <div style="width: ${percentage}%; height: 100%; background: ${color}; border-radius: 3px; transition: width 0.3s ease;"></div>
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            `;
+        }
+        
+        // Create weekly usage pattern chart
+        function createWeeklyChart(weeklyData) {
+            if (!weeklyData || weeklyData.length === 0) {
+                return '<p style="text-align: center; color: #666; margin-top: 50px;">No weekly data available</p>';
+            }
+            
+            const maxCount = Math.max(...weeklyData.map(d => d.count));
+            const chartHeight = 100;
+            
+            return `
+                <div style="display: flex; align-items: flex-end; height: ${chartHeight}px; gap: 8px; padding: 15px; justify-content: space-around;">
+                    ${weeklyData.map(day => {
+                        const barHeight = maxCount > 0 ? (day.count / maxCount) * (chartHeight - 20) : 0;
+                        return `
+                            <div style="display: flex; flex-direction: column; align-items: center;">
+                                <div style="font-size: 12px; margin-bottom: 5px; font-weight: bold; color: #dc3545;">
+                                    ${day.count}
+                                </div>
+                                <div style="
+                                    width: 25px; 
+                                    height: ${Math.max(barHeight, 3)}px; 
+                                    background: ${day.count > 0 ? '#dc3545' : '#e9ecef'}; 
+                                    border-radius: 3px 3px 0 0;
+                                " title="${day.day}: ${day.count} searches"></div>
+                                <div style="font-size: 10px; margin-top: 5px; color: #666; writing-mode: vertical-lr; text-orientation: mixed;">
+                                    ${day.day.substring(0, 3)}
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
                 </div>
             `;
         }
