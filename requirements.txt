@@ -7,7 +7,7 @@ requests>=2.32.0
 openai>=1.51.2
 python-dotenv>=1.0.0
 sqlalchemy>=2.0.32
-psycopg2-binary>=2.9.7
+psycopg2-binary==2.9.9
 python-jose[cryptography]>=3.3.0
 passlib[bcrypt]>=1.7.4
 python-multipart>=0.0.12
