@@ -126,6 +126,14 @@ async def serve_test_dashboard():
     except:
         return {"message": "Test dashboard not available", "api_docs": "/docs"}
 
+@app.get("/test-admin-users")
+async def serve_test_admin_users():
+    """Serve the admin users diagnostic tool"""
+    try:
+        return FileResponse("../test-admin-users.html")
+    except:
+        return {"message": "Admin users test not available", "api_docs": "/docs"}
+
 # Saved Jobs Storage Management
 SAVED_JOBS_FILE = "saved_jobs.json"
 
