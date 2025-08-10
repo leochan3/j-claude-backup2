@@ -217,6 +217,26 @@
             text-align: center;
             font-size: 0.9em;
         }
+        .warning-message {
+            background: #fef3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .warning-message h3 {
+            color: #856404;
+            margin: 0 0 15px 0;
+        }
+        .warning-message p {
+            color: #856404;
+            margin: 10px 0;
+        }
+        .warning-message ol {
+            color: #856404;
+            margin: 15px 0;
+            padding-left: 20px;
+        }
     </style>
 </head>
 <body>
@@ -323,10 +343,26 @@
 
     <script>
         const API_BASE = window.location.origin;
+        const IS_PRODUCTION = window.location.hostname.includes('render.com') || window.location.hostname.includes('onrender.com');
         let migrationInProgress = false;
 
         // Load statistics on page load
         document.addEventListener('DOMContentLoaded', function() {
+            // Update header based on environment
+            const header = document.querySelector('.header');
+            if (IS_PRODUCTION) {
+                header.style.background = 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)';
+                const envIndicator = document.createElement('div');
+                envIndicator.innerHTML = '<strong>🌐 PRODUCTION SERVER</strong><br>Migration must be done from localhost';
+                envIndicator.style.cssText = 'margin-top: 10px; padding: 10px; background: rgba(255,255,255,0.2); border-radius: 8px;';
+                header.appendChild(envIndicator);
+            } else {
+                const envIndicator = document.createElement('div');
+                envIndicator.innerHTML = '<strong>💻 LOCAL DEVELOPMENT</strong><br>Ready for migration';
+                envIndicator.style.cssText = 'margin-top: 10px; padding: 10px; background: rgba(255,255,255,0.2); border-radius: 8px;';
+                header.appendChild(envIndicator);
+            }
+            
             refreshStats();
         });
 
@@ -355,6 +391,24 @@
 
         async function analyzeLocalData() {
             try {
+                // Check if running on production - migration should be done locally
+                if (IS_PRODUCTION) {
+                    const analysisDiv = document.getElementById('localAnalysis');
+                    analysisDiv.innerHTML = `
+                        <div class="warning-message">
+                            <h3>⚠️ Migration Must Be Done Locally</h3>
+                            <p>You're currently on the production server. The SQLite database is on your local machine, so migration must be performed locally:</p>
+                            <ol>
+                                <li>Go to <strong>http://localhost:8000/admin/migration</strong></li>
+                                <li>Use the PostgreSQL URL provided</li>
+                                <li>Run the migration from your local environment</li>
+                            </ol>
+                            <p>The local database contains your scraped job data that needs to be migrated to production PostgreSQL.</p>
+                        </div>
+                    `;
+                    return;
+                }
+                
                 showStatus('Analyzing local database...', 'info');
                 
                 const response = await fetch(`${API_BASE}/admin/local-db-stats`);
@@ -446,6 +500,12 @@
 
         async function startMigration() {
             if (migrationInProgress) return;
+
+            // Prevent migration on production
+            if (IS_PRODUCTION) {
+                showStatus('Migration must be done from localhost:8000, not production server', 'error');
+                return;
+            }
 
             const postgresUrl = document.getElementById('postgresUrl').value;
             const batchSize = parseInt(document.getElementById('batchSize').value);
