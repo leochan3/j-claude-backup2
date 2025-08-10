@@ -270,6 +270,7 @@ class ScrapingRun(Base):
     
     # Analytics data
     search_analytics = Column(JSON)  # Store search term performance data
+    current_progress = Column(JSON)  # Real-time progress updates for UI polling
     
     # Relationships
     jobs = relationship("ScrapedJob", back_populates="scraping_run")

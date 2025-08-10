@@ -207,52 +207,108 @@ Remote</textarea>
                 const data = await response.json();
                 
                 if (response.ok) {
-                    // Success
-                    results.className = 'results success';
-                    
-                    // Build analytics display
-                    let analyticsHtml = '';
-                    if (data.search_analytics) {
-                        analyticsHtml = '\n\n📊 SEARCH TERM PERFORMANCE ANALYTICS:\n';
-                        for (const [company, analytics] of Object.entries(data.search_analytics)) {
-                            analyticsHtml += `\n🏢 ${company.toUpperCase()}:\n`;
-                            const sortedTerms = Object.entries(analytics)
-                                .filter(([term, count]) => count > 0)
-                                .sort((a, b) => b[1] - a[1])
-                                .slice(0, 10); // Top 10 performing terms
-                            
-                            sortedTerms.forEach(([term, count]) => {
-                                analyticsHtml += `  🏆 ${term}: ${count} jobs\n`;
-                            });
-                        }
-                    }
-                    
-                    results.innerHTML = `🎉 Scraping Completed Successfully!
+                    // Start polling for progress using the run ID
+                    const runId = data.id;
+                    results.textContent = `🚀 Scraping started! Run ID: ${runId}\n⏳ Polling for progress updates...`;
 
-📊 Results Summary:
-• Total jobs found: ${data.total_jobs_found}
-• New jobs added: ${data.new_jobs_added}
-• Duplicates skipped: ${data.duplicate_jobs_skipped}
-• Duration: ${data.duration_seconds} seconds
-• Status: ${data.status}
+                    // Poll for progress every 2 seconds
+                    const pollInterval = setInterval(async () => {
+                        try {
+                            const progressResponse = await fetch(`${apiBase}/scraping-runs/${runId}/progress`);
+                            const progressData = await progressResponse.json();
+                            
+                            if (progressResponse.ok) {
+                                const progress = progressData.progress || {};
+                                const status = progressData.status;
+                                
+                                // Build progress display
+                                let progressText = `🔄 Scraping Progress (Run ID: ${runId})\n`;
+                                progressText += `Status: ${status}\n`;
+                                progressText += `Started: ${new Date(progressData.started_at).toLocaleString()}\n\n`;
+                                
+                                if (progress.phase) {
+                                    progressText += `Phase: ${progress.phase}\n`;
+                                }
+                                
+                                if (progress.total_companies) {
+                                    const completed = progress.completed_companies || 0;
+                                    const total = progress.total_companies;
+                                    const percentage = Math.round((completed / total) * 100);
+                                    progressText += `Companies: ${completed}/${total} (${percentage}%)\n`;
+                                }
+                                
+                                if (progress.current_company) {
+                                    progressText += `Current Company: ${progress.current_company}\n`;
+                                }
+                                
+                                if (progress.current_search_term) {
+                                    progressText += `Current Search: ${progress.current_search_term}\n`;
+                                }
+                                
+                                if (progress.current_location) {
+                                    progressText += `Current Location: ${progress.current_location}\n`;
+                                }
+                                
+                                progressText += `\nJobs Found: ${progressData.total_jobs_found || 0}\n`;
+                                progressText += `New Jobs: ${progressData.new_jobs_added || 0}\n`;
+                                
+                                if (progressData.duration_seconds) {
+                                    progressText += `Duration: ${progressData.duration_seconds}s\n`;
+                                }
+                                
+                                results.textContent = progressText;
+                                
+                                // Check if completed or failed
+                                if (status === 'completed') {
+                                    clearInterval(pollInterval);
+                                    results.className = 'results success';
+                                    
+                                    // Fetch final results
+                                    const finalResponse = await fetch(`${apiBase}/scraping-runs/${runId}/progress`);
+                                    const finalData = await finalResponse.json();
+                                    
+                                    let analyticsHtml = '';
+                                    if (finalData && finalData.search_analytics) {
+                                        analyticsHtml = '\n\n📊 SEARCH TERM PERFORMANCE ANALYTICS:\n';
+                                        for (const [company, analytics] of Object.entries(finalData.search_analytics)) {
+                                            analyticsHtml += `\n🏢 ${company.toUpperCase()}:\n`;
+                                            const sortedTerms = Object.entries(analytics)
+                                                .filter(([term, count]) => count > 0)
+                                                .sort((a, b) => b[1] - a[1])
+                                                .slice(0, 10);
+                                            sortedTerms.forEach(([term, count]) => {
+                                                analyticsHtml += `  🏆 ${term}: ${count} jobs\n`;
+                                            });
+                                        }
+                                    }
+                                    
+                                    results.innerHTML = `🎉 Scraping Completed Successfully!
+
+📊 Final Results:
+• Total jobs found: ${finalData.total_jobs_found}
+• New jobs added: ${finalData.new_jobs_added}
+• Duration: ${finalData.duration_seconds} seconds
 ${analyticsHtml}
 
-🔍 You can now search these jobs instantly using the local search!
-
-<button onclick="saveAnalytics()" style="margin-top: 15px; padding: 10px 20px; background: #28a745; color: white; border: none; border-radius: 5px; cursor: pointer;">💾 Save Analytics Report</button>`;
-                    
-                    // Store analytics globally for saving
-                    window.lastScrapingAnalytics = {
-                        timestamp: new Date().toISOString(),
-                        companies: data.companies_scraped,
-                        summary: {
-                            total_jobs_found: data.total_jobs_found,
-                            new_jobs_added: data.new_jobs_added,
-                            duplicates_skipped: data.duplicate_jobs_skipped,
-                            duration_seconds: data.duration_seconds
-                        },
-                        search_analytics: data.search_analytics
-                    };
+🔍 You can now search these jobs instantly using the local search!`;
+                                    
+                                    // Re-enable button
+                                    button.disabled = false;
+                                    button.textContent = '🚀 Start Scraping';
+                                } else if (status === 'failed') {
+                                    clearInterval(pollInterval);
+                                    results.className = 'results error';
+                                    results.textContent = `❌ Scraping Failed: ${progress.error || 'Unknown error'}`;
+                                    button.disabled = false;
+                                    button.textContent = '🚀 Start Scraping';
+                                }
+                            } else {
+                                console.error('Failed to get progress:', progressData);
+                            }
+                        } catch (error) {
+                            console.error('Error polling progress:', error);
+                        }
+                    }, 2000);
                 } else {
                     // Error
                     results.className = 'results error';

@@ -2426,20 +2426,93 @@ async def scrape_companies_bulk_public(
     request: BulkScrapingRequest,
     db: Session = Depends(get_db)
 ):
-    """Scrape multiple companies in bulk without authentication (for admin frontend)."""
+    """Start bulk scraping in background and return immediately for progress tracking."""
     try:
-        print(f"🚀 Starting public bulk scraping for {len(request.company_names)} companies")
+        print(f"🚀 Starting background bulk scraping for {len(request.company_names)} companies")
         
-        # Start the scraping process
-        scraping_run = await job_scraper.bulk_scrape_companies(request, db)
+        # Create scraping run record immediately
+        start_time = datetime.now(timezone.utc)
+        scraping_run = ScrapingRun(
+            run_type="bulk_manual",
+            status="running",
+            companies_scraped=request.company_names,
+            sites_used=request.sites,
+            search_parameters=request.model_dump(),
+            started_at=start_time,
+            current_progress={
+                "phase": "starting",
+                "total_companies": len(request.company_names),
+                "completed_companies": 0,
+                "current_company": None,
+                "current_search_term": None
+            }
+        )
+        db.add(scraping_run)
+        db.commit()
+        db.refresh(scraping_run)
         
+        # Start scraping in background task
+        asyncio.create_task(run_bulk_scraping_background(scraping_run.id, request))
+        
+        # Return immediately with "running" status
         return ScrapingRunResponse.from_orm(scraping_run)
         
     except Exception as e:
         raise HTTPException(
             status_code=500,
-            detail=f"Error during bulk scraping: {str(e)}"
+            detail=f"Error starting bulk scraping: {str(e)}"
         )
+
+async def run_bulk_scraping_background(scraping_run_id: str, request: BulkScrapingRequest):
+    """Run scraping in background and update progress."""
+    # Create new database session for background task
+    db = next(get_db())
+    
+    try:
+        print(f"🔄 Background scraping started for run {scraping_run_id}")
+        
+        # Get the scraping run
+        scraping_run = db.query(ScrapingRun).filter(ScrapingRun.id == scraping_run_id).first()
+        if not scraping_run:
+            print(f"❌ Scraping run {scraping_run_id} not found")
+            return
+        
+        # Run the actual scraping with progress updates
+        await job_scraper.bulk_scrape_companies_with_progress(request, db, scraping_run)
+        
+    except Exception as e:
+        print(f"❌ Background scraping failed: {str(e)}")
+        # Mark as failed
+        scraping_run = db.query(ScrapingRun).filter(ScrapingRun.id == scraping_run_id).first()
+        if scraping_run:
+            scraping_run.status = "failed"
+            scraping_run.error_message = str(e)
+            scraping_run.completed_at = datetime.now(timezone.utc)
+            db.commit()
+    finally:
+        db.close()
+
+@app.get("/scraping-runs/{run_id}/progress")
+async def get_scraping_progress(
+    run_id: str,
+    db: Session = Depends(get_db)
+):
+    """Get real-time progress of a scraping run."""
+    run = db.query(ScrapingRun).filter(ScrapingRun.id == run_id).first()
+    if not run:
+        raise HTTPException(status_code=404, detail="Scraping run not found")
+    
+    return {
+        "success": True,
+        "run_id": run_id,
+        "status": run.status,
+        "progress": getattr(run, "current_progress", None),
+        "total_jobs_found": run.total_jobs_found or 0,
+        "new_jobs_added": run.new_jobs_added or 0,
+        "started_at": run.started_at,
+        "completed_at": run.completed_at,
+        "duration_seconds": run.duration_seconds
+    }
 
 @app.get("/health")
 async def health_check():
