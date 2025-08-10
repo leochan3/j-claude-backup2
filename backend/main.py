@@ -2631,6 +2631,31 @@ async def delete_company_jobs_public(company_name: str, db: Session = Depends(ge
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Error deleting company jobs: {str(e)}")
 
+@app.post("/admin/migrate-schema")
+async def migrate_database_schema(db: Session = Depends(get_db)):
+    """Migrate database schema to add missing columns (admin only)"""
+    try:
+        from sqlalchemy import text, inspect
+        
+        # Check if search_analytics column exists
+        inspector = inspect(db.bind)
+        columns = [col['name'] for col in inspector.get_columns('scraping_runs')]
+        
+        if 'search_analytics' not in columns:
+            # Add the missing column
+            db.execute(text("ALTER TABLE scraping_runs ADD COLUMN search_analytics JSON"))
+            db.commit()
+            return {"success": True, "message": "Added search_analytics column"}
+        else:
+            return {"success": True, "message": "Schema already up to date"}
+            
+    except Exception as e:
+        return {
+            "success": False, 
+            "error": str(e),
+            "message": "Migration failed"
+        }
+
 @app.get("/admin")
 async def serve_admin_dashboard():
     """Serve the unified admin dashboard"""
