@@ -2769,6 +2769,177 @@ async def migrate_database_schema(db: Session = Depends(get_db)):
             "message": "Migration failed"
         }
 
+# Database Migration Endpoints
+@app.post("/admin/migrate-data")
+async def migrate_local_to_production(
+    postgres_url: str,
+    dry_run: bool = False,
+    batch_size: int = 1000
+):
+    """Migrate local SQLite data to production PostgreSQL"""
+    try:
+        # Import migration functionality
+        from migrate_sqlite_to_postgres import DatabaseMigrator
+        
+        # Check if local SQLite exists
+        sqlite_path = "../jobsearch.db"
+        if not os.path.exists(sqlite_path):
+            raise HTTPException(status_code=404, detail="Local SQLite database not found")
+        
+        # Initialize migrator
+        migrator = DatabaseMigrator(
+            sqlite_path=sqlite_path,
+            postgres_url=postgres_url,
+            batch_size=batch_size
+        )
+        
+        # Verify connections
+        if not migrator.verify_connections():
+            raise HTTPException(status_code=400, detail="Database connection verification failed")
+        
+        # Run migration
+        results = migrator.run_full_migration(dry_run=dry_run)
+        
+        if 'error' in results:
+            raise HTTPException(status_code=500, detail=f"Migration failed: {results['error']}")
+        
+        return {
+            "success": True,
+            "message": "Migration completed successfully" if not dry_run else "Migration simulation completed",
+            "results": results
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Migration error: {str(e)}")
+
+@app.get("/admin/migration-stats")
+async def get_migration_stats():
+    """Get statistics for migration preview"""
+    try:
+        from migrate_sqlite_to_postgres import DatabaseMigrator
+        
+        # Check if local SQLite exists
+        sqlite_path = "../jobsearch.db"
+        if not os.path.exists(sqlite_path):
+            return {
+                "sqlite_available": False,
+                "message": "Local SQLite database not found"
+            }
+        
+        # Get current DATABASE_URL for production stats
+        postgres_url = os.getenv("DATABASE_URL")
+        if not postgres_url:
+            return {
+                "sqlite_available": True,
+                "postgres_available": False, 
+                "message": "No production database URL configured"
+            }
+        
+        # Initialize migrator to get stats
+        migrator = DatabaseMigrator(
+            sqlite_path=sqlite_path,
+            postgres_url=postgres_url,
+            batch_size=1000
+        )
+        
+        # Get migration stats
+        stats = migrator.get_migration_stats()
+        
+        return {
+            "success": True,
+            "sqlite_available": True,
+            "postgres_available": True,
+            "stats": stats
+        }
+        
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+@app.get("/admin/local-db-stats")
+async def get_local_database_stats():
+    """Get local SQLite database statistics"""
+    try:
+        from database import SessionLocal
+        from sqlalchemy import func, create_engine
+        
+        # Create SQLite connection
+        sqlite_engine = create_engine("sqlite:///../jobsearch.db")
+        SqliteSession = sessionmaker(bind=sqlite_engine)
+        
+        db = SqliteSession()
+        
+        try:
+            # Basic counts
+            stats = {
+                "total_jobs": db.query(ScrapedJob).count(),
+                "active_jobs": db.query(ScrapedJob).filter(ScrapedJob.is_active == True).count(),
+                "companies": db.query(TargetCompany).count(),
+                "scraping_runs": db.query(ScrapingRun).count(),
+                "users": db.query(User).count()
+            }
+            
+            # Recent activity (last 7 days)
+            seven_days_ago = datetime.now(timezone.utc) - timedelta(days=7)
+            stats["recent_jobs"] = db.query(ScrapedJob).filter(
+                ScrapedJob.date_scraped >= seven_days_ago
+            ).count()
+            
+            # Top companies
+            top_companies = db.query(
+                ScrapedJob.company,
+                func.count(ScrapedJob.id).label('count')
+            ).filter(
+                ScrapedJob.is_active == True
+            ).group_by(
+                ScrapedJob.company
+            ).order_by(
+                func.count(ScrapedJob.id).desc()
+            ).limit(10).all()
+            
+            stats["top_companies"] = [
+                {"company": company, "job_count": count} 
+                for company, count in top_companies
+            ]
+            
+            # Sites breakdown
+            site_counts = db.query(
+                ScrapedJob.site,
+                func.count(ScrapedJob.id).label('count')
+            ).filter(
+                ScrapedJob.is_active == True
+            ).group_by(
+                ScrapedJob.site
+            ).order_by(
+                func.count(ScrapedJob.id).desc()
+            ).all()
+            
+            stats["sites"] = [
+                {"site": site, "job_count": count}
+                for site, count in site_counts
+            ]
+            
+            return {
+                "success": True,
+                "stats": stats
+            }
+            
+        finally:
+            db.close()
+            
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error getting local stats: {str(e)}")
+
+@app.get("/admin/migration")
+async def serve_migration_dashboard():
+    """Serve the database migration dashboard"""
+    try:
+        return FileResponse("../migration-dashboard.html")
+    except:
+        return {"message": "Migration dashboard not available", "api_docs": "/docs"}
+
 @app.get("/admin")
 async def serve_admin_dashboard():
     """Serve the unified admin dashboard"""

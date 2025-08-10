@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Database Migration Dashboard</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f5f7fa;
+            color: #2d3748;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0 0 10px 0;
+            font-size: 2.5em;
+            font-weight: 300;
+        }
+        .header p {
+            margin: 0;
+            opacity: 0.9;
+            font-size: 1.1em;
+        }
+        .content {
+            padding: 30px;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .stat-card {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+        }
+        .stat-card.sqlite {
+            border-left: 4px solid #3182ce;
+        }
+        .stat-card.postgres {
+            border-left: 4px solid #38a169;
+        }
+        .stat-number {
+            font-size: 2em;
+            font-weight: bold;
+            color: #2d3748;
+            margin-bottom: 5px;
+        }
+        .stat-label {
+            color: #718096;
+            font-size: 0.9em;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .section {
+            background: #f8fafc;
+            border-radius: 8px;
+            padding: 25px;
+            margin-bottom: 20px;
+            border-left: 4px solid #4299e1;
+        }
+        .section h3 {
+            margin: 0 0 20px 0;
+            color: #2d3748;
+            font-size: 1.3em;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #4a5568;
+        }
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e2e8f0;
+            border-radius: 6px;
+            font-size: 16px;
+            transition: border-color 0.2s;
+            box-sizing: border-box;
+        }
+        .form-group input:focus, .form-group select:focus {
+            outline: none;
+            border-color: #4299e1;
+        }
+        .button {
+            background: linear-gradient(135deg, #4299e1 0%, #3182ce 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 500;
+            transition: transform 0.2s, box-shadow 0.2s;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        .button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(66, 153, 225, 0.4);
+        }
+        .button:disabled {
+            background: #a0aec0;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        .button.secondary {
+            background: linear-gradient(135deg, #718096 0%, #4a5568 100%);
+        }
+        .button.danger {
+            background: linear-gradient(135deg, #f56565 0%, #e53e3e 100%);
+        }
+        .progress-container {
+            background: #edf2f7;
+            border-radius: 10px;
+            height: 20px;
+            margin: 20px 0;
+            overflow: hidden;
+        }
+        .progress-bar {
+            background: linear-gradient(90deg, #4299e1, #3182ce);
+            height: 100%;
+            width: 0%;
+            transition: width 0.3s ease;
+            border-radius: 10px;
+        }
+        .log-container {
+            background: #1a202c;
+            color: #e2e8f0;
+            border-radius: 6px;
+            padding: 15px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            max-height: 300px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            margin-top: 20px;
+        }
+        .status {
+            padding: 10px 15px;
+            border-radius: 6px;
+            margin: 10px 0;
+            font-weight: 500;
+        }
+        .status.success {
+            background: #c6f6d5;
+            color: #22543d;
+            border: 1px solid #9ae6b4;
+        }
+        .status.error {
+            background: #fed7d7;
+            color: #742a2a;
+            border: 1px solid #feb2b2;
+        }
+        .status.info {
+            background: #bee3f8;
+            color: #2a4365;
+            border: 1px solid #90cdf4;
+        }
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid #e2e8f0;
+            border-radius: 50%;
+            border-top-color: #4299e1;
+            animation: spin 1s ease-in-out infinite;
+            margin-right: 10px;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .toggle-group {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin: 15px 0;
+        }
+        .checkbox {
+            width: auto !important;
+            margin-right: 8px;
+        }
+        .company-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 10px;
+            margin-top: 15px;
+        }
+        .company-item {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 10px;
+            text-align: center;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔄 Database Migration Dashboard</h1>
+            <p>Migrate your local job data to production PostgreSQL</p>
+        </div>
+
+        <div class="content">
+            <!-- Statistics Section -->
+            <div class="section">
+                <h3>📊 Database Statistics</h3>
+                <div class="stats-grid" id="statsGrid">
+                    <div class="stat-card sqlite">
+                        <div class="stat-number" id="localJobs">--</div>
+                        <div class="stat-label">Local Jobs</div>
+                    </div>
+                    <div class="stat-card sqlite">
+                        <div class="stat-number" id="localCompanies">--</div>
+                        <div class="stat-label">Local Companies</div>
+                    </div>
+                    <div class="stat-card postgres">
+                        <div class="stat-number" id="prodJobs">--</div>
+                        <div class="stat-label">Production Jobs</div>
+                    </div>
+                    <div class="stat-card postgres">
+                        <div class="stat-number" id="estimatedNew">--</div>
+                        <div class="stat-label">Estimated New</div>
+                    </div>
+                </div>
+                <button class="button secondary" onclick="refreshStats()">
+                    🔄 Refresh Statistics
+                </button>
+            </div>
+
+            <!-- Local Database Analysis -->
+            <div class="section">
+                <h3>🗄️ Local Database Analysis</h3>
+                <div id="localAnalysis">
+                    <p class="status info">Click "Analyze Local Data" to see detailed statistics</p>
+                </div>
+                <button class="button secondary" onclick="analyzeLocalData()">
+                    🔍 Analyze Local Data
+                </button>
+            </div>
+
+            <!-- Migration Configuration -->
+            <div class="section">
+                <h3>⚙️ Migration Configuration</h3>
+                <div class="form-group">
+                    <label for="postgresUrl">Production PostgreSQL URL:</label>
+                    <input type="password" id="postgresUrl" 
+                           placeholder="postgresql://username:password@host:port/database"
+                           autocomplete="off">
+                    <small style="color: #718096; font-size: 0.9em;">
+                        💡 This should be your Render PostgreSQL database URL
+                    </small>
+                </div>
+                
+                <div class="form-group">
+                    <label for="batchSize">Batch Size:</label>
+                    <select id="batchSize">
+                        <option value="500">500 (Recommended for Render)</option>
+                        <option value="1000">1000</option>
+                        <option value="2000">2000</option>
+                    </select>
+                </div>
+
+                <div class="toggle-group">
+                    <input type="checkbox" id="dryRun" class="checkbox" checked>
+                    <label for="dryRun">Dry Run (Simulate without changes)</label>
+                </div>
+            </div>
+
+            <!-- Migration Actions -->
+            <div class="section">
+                <h3>🚀 Migration Actions</h3>
+                
+                <button class="button" onclick="startMigration()" id="migrateBtn">
+                    🔄 Start Migration
+                </button>
+                
+                <button class="button secondary" onclick="testConnection()">
+                    🔗 Test Connection
+                </button>
+
+                <!-- Progress Section -->
+                <div id="migrationProgress" style="display: none;">
+                    <div class="progress-container">
+                        <div class="progress-bar" id="progressBar"></div>
+                    </div>
+                    <div id="progressText">Preparing migration...</div>
+                </div>
+
+                <!-- Status Messages -->
+                <div id="statusMessages"></div>
+
+                <!-- Log Output -->
+                <div id="logContainer" class="log-container" style="display: none;"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = window.location.origin;
+        let migrationInProgress = false;
+
+        // Load statistics on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            refreshStats();
+        });
+
+        async function refreshStats() {
+            try {
+                showStatus('Loading statistics...', 'info');
+                
+                const response = await fetch(`${API_BASE}/admin/migration-stats`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    const stats = data.stats;
+                    document.getElementById('localJobs').textContent = stats.sqlite_jobs?.toLocaleString() || '--';
+                    document.getElementById('localCompanies').textContent = stats.sqlite_companies?.toLocaleString() || '--';
+                    document.getElementById('prodJobs').textContent = stats.postgres_jobs?.toLocaleString() || '--';
+                    document.getElementById('estimatedNew').textContent = stats.new_jobs_estimate?.toLocaleString() || '--';
+                    
+                    clearStatus();
+                } else {
+                    showStatus(data.message || data.error || 'Failed to load statistics', 'error');
+                }
+            } catch (error) {
+                showStatus(`Error loading statistics: ${error.message}`, 'error');
+            }
+        }
+
+        async function analyzeLocalData() {
+            try {
+                showStatus('Analyzing local database...', 'info');
+                
+                const response = await fetch(`${API_BASE}/admin/local-db-stats`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    const stats = data.stats;
+                    const analysisDiv = document.getElementById('localAnalysis');
+                    
+                    let html = `
+                        <div class="stats-grid">
+                            <div class="stat-card">
+                                <div class="stat-number">${stats.total_jobs.toLocaleString()}</div>
+                                <div class="stat-label">Total Jobs</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-number">${stats.active_jobs.toLocaleString()}</div>
+                                <div class="stat-label">Active Jobs</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-number">${stats.recent_jobs.toLocaleString()}</div>
+                                <div class="stat-label">Recent Jobs (7d)</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-number">${stats.scraping_runs.toLocaleString()}</div>
+                                <div class="stat-label">Scraping Runs</div>
+                            </div>
+                        </div>
+                    `;
+                    
+                    if (stats.top_companies && stats.top_companies.length > 0) {
+                        html += `
+                            <h4>🏢 Top Companies by Job Count:</h4>
+                            <div class="company-list">
+                                ${stats.top_companies.map(company => 
+                                    `<div class="company-item">
+                                        <strong>${company.company}</strong><br>
+                                        ${company.job_count.toLocaleString()} jobs
+                                    </div>`
+                                ).join('')}
+                            </div>
+                        `;
+                    }
+                    
+                    analysisDiv.innerHTML = html;
+                    clearStatus();
+                } else {
+                    showStatus('Failed to analyze local database', 'error');
+                }
+            } catch (error) {
+                showStatus(`Error analyzing local data: ${error.message}`, 'error');
+            }
+        }
+
+        async function testConnection() {
+            const postgresUrl = document.getElementById('postgresUrl').value;
+            if (!postgresUrl) {
+                showStatus('Please enter a PostgreSQL URL', 'error');
+                return;
+            }
+
+            try {
+                showStatus('Testing database connection...', 'info');
+                
+                // Test with a dry run migration call
+                const response = await fetch(`${API_BASE}/admin/migrate-data`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        postgres_url: postgresUrl,
+                        dry_run: true,
+                        batch_size: 10
+                    })
+                });
+
+                const data = await response.json();
+                
+                if (response.ok && data.success) {
+                    showStatus('✅ Database connection successful!', 'success');
+                } else {
+                    showStatus(`❌ Connection failed: ${data.detail || data.message}`, 'error');
+                }
+            } catch (error) {
+                showStatus(`❌ Connection test failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function startMigration() {
+            if (migrationInProgress) return;
+
+            const postgresUrl = document.getElementById('postgresUrl').value;
+            const batchSize = parseInt(document.getElementById('batchSize').value);
+            const isDryRun = document.getElementById('dryRun').checked;
+
+            if (!postgresUrl) {
+                showStatus('Please enter a PostgreSQL URL', 'error');
+                return;
+            }
+
+            if (!isDryRun) {
+                const confirm = window.confirm(
+                    '⚠️ This will migrate data to production. Are you sure you want to continue?'
+                );
+                if (!confirm) return;
+            }
+
+            try {
+                migrationInProgress = true;
+                document.getElementById('migrateBtn').disabled = true;
+                document.getElementById('migrationProgress').style.display = 'block';
+                document.getElementById('logContainer').style.display = 'block';
+                
+                showStatus(isDryRun ? 'Starting migration simulation...' : 'Starting migration...', 'info');
+                updateProgress(0, 'Initializing migration...');
+
+                const response = await fetch(`${API_BASE}/admin/migrate-data`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        postgres_url: postgresUrl,
+                        dry_run: isDryRun,
+                        batch_size: batchSize
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.success) {
+                    updateProgress(100, 'Migration completed!');
+                    
+                    const results = data.results;
+                    let logText = `${isDryRun ? 'SIMULATION' : 'MIGRATION'} COMPLETED!\n\n`;
+                    logText += `Duration: ${results.duration_seconds}s\n`;
+                    logText += `Users migrated: ${results.users || 0}\n`;
+                    logText += `Companies migrated: ${results.companies || 0}\n`;
+                    logText += `Scraping runs migrated: ${results.scraping_runs || 0}\n`;
+                    logText += `Jobs migrated: ${(results.jobs_migrated || 0).toLocaleString()}\n`;
+                    logText += `Jobs skipped (duplicates): ${(results.jobs_skipped || 0).toLocaleString()}\n`;
+
+                    appendLog(logText);
+                    showStatus(`✅ ${data.message}`, 'success');
+                    
+                    // Refresh stats after migration
+                    setTimeout(refreshStats, 2000);
+                } else {
+                    updateProgress(0, 'Migration failed');
+                    showStatus(`❌ Migration failed: ${data.detail || data.message}`, 'error');
+                    appendLog(`ERROR: ${data.detail || data.message}`);
+                }
+
+            } catch (error) {
+                updateProgress(0, 'Migration error');
+                showStatus(`❌ Migration error: ${error.message}`, 'error');
+                appendLog(`ERROR: ${error.message}`);
+            } finally {
+                migrationInProgress = false;
+                document.getElementById('migrateBtn').disabled = false;
+            }
+        }
+
+        function updateProgress(percentage, text) {
+            document.getElementById('progressBar').style.width = `${percentage}%`;
+            document.getElementById('progressText').textContent = text;
+        }
+
+        function showStatus(message, type) {
+            const statusDiv = document.getElementById('statusMessages');
+            statusDiv.innerHTML = `<div class="status ${type}">${message}</div>`;
+        }
+
+        function clearStatus() {
+            document.getElementById('statusMessages').innerHTML = '';
+        }
+
+        function appendLog(text) {
+            const logContainer = document.getElementById('logContainer');
+            logContainer.textContent += text + '\n';
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+
+        // Auto-populate PostgreSQL URL from environment if available
+        fetch(`${API_BASE}/admin/migration-stats`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.postgres_available) {
+                    // Don't auto-populate for security, but show that it's configured
+                    showStatus('💡 Production database URL detected from environment', 'info');
+                }
+            })
+            .catch(() => {});
+    </script>
+</body>
+</html>
