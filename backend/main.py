@@ -67,6 +67,29 @@ app = FastAPI(
     version="3.0.0"
 )
 
+# Utilities
+def ensure_scraping_runs_progress_columns(db: Session) -> None:
+    """Ensure production DB has required JSON columns; no-op if already present."""
+    try:
+        from sqlalchemy import text, inspect
+        inspector = inspect(db.bind)
+        columns = [col['name'] for col in inspector.get_columns('scraping_runs')]
+
+        statements = []
+        if 'search_analytics' not in columns:
+            statements.append("ALTER TABLE scraping_runs ADD COLUMN search_analytics JSON")
+        # Refresh columns list only if needed isn't strictly necessary, we append both checks
+        if 'current_progress' not in columns:
+            statements.append("ALTER TABLE scraping_runs ADD COLUMN current_progress JSON")
+
+        if statements:
+            for stmt in statements:
+                db.execute(text(stmt))
+            db.commit()
+    except Exception:
+        # Silently continue; creation will fail again with a clear error if truly broken
+        pass
+
 # Add CORS middleware to allow frontend access
 app.add_middleware(
     CORSMiddleware,
@@ -2243,6 +2266,8 @@ async def scrape_companies_bulk(
 ):
     """Scrape jobs for multiple companies in bulk."""
     try:
+        # Ensure required columns exist (prod safety)
+        ensure_scraping_runs_progress_columns(db)
         print(f"🚀 Starting bulk scraping for {len(request.company_names)} companies")
         
         # Start the scraping process
@@ -2428,6 +2453,8 @@ async def scrape_companies_bulk_public(
 ):
     """Start bulk scraping in background and return immediately for progress tracking."""
     try:
+        # Ensure required columns exist (prod safety)
+        ensure_scraping_runs_progress_columns(db)
         print(f"🚀 Starting background bulk scraping for {len(request.company_names)} companies")
         
         # Create scraping run record immediately
