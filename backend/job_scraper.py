@@ -195,90 +195,98 @@ class JobScrapingService:
         target_company_id: str = None,
         scraping_run_id: str = None
     ) -> Tuple[int, int]:
-        """Store jobs in database with deduplication. Returns (new_jobs, duplicates)."""
-        
+        """Store jobs in database with deduplication. Returns (new_jobs, duplicates).
+
+        Robust to duplicates by handling IntegrityError per-row and committing per insert
+        to avoid rolling back the entire batch on a single duplicate.
+        """
+
+        from sqlalchemy.exc import IntegrityError
+
         new_jobs_count = 0
         duplicate_jobs_count = 0
-        
+
         for job_data in jobs:
+            # Create job hash for deduplication
+            job_hash = create_job_hash(
+                title=job_data.get('title', ''),
+                company=job_data.get('company', ''),
+                location=job_data.get('location', ''),
+                job_url=job_data.get('job_url', '')
+            )
+
+            # Quick existence check
             try:
-                # Create job hash for deduplication
-                job_hash = create_job_hash(
-                    title=job_data.get('title', ''),
-                    company=job_data.get('company', ''),
-                    location=job_data.get('location', ''),
-                    job_url=job_data.get('job_url', '')
-                )
-                
-                # Check if job already exists
                 existing_job = db.query(ScrapedJob).filter(
                     ScrapedJob.job_hash == job_hash
                 ).first()
-                
                 if existing_job:
                     duplicate_jobs_count += 1
                     continue
-                
-                # Extract experience years
-                min_exp, max_exp = self.extract_experience_years(
-                    job_data.get('description', '')
-                )
-                
-                # Parse date_posted
-                date_posted = None
-                if job_data.get('date_posted'):
-                    try:
-                        if isinstance(job_data['date_posted'], str):
-                            date_posted = datetime.fromisoformat(job_data['date_posted'])
-                        elif isinstance(job_data['date_posted'], datetime):
-                            date_posted = job_data['date_posted']
-                        else:
-                            # JobSpy often returns date objects
-                            from datetime import date
-                            if isinstance(job_data['date_posted'], date):
-                                date_posted = datetime.combine(job_data['date_posted'], datetime.min.time())
-                    except Exception as e:
-                        print(f"Failed to parse date_posted: {job_data.get('date_posted')} - {e}")
-                        date_posted = None
-                
-                # Create new job record - use direct apply URL if available
-                job_url = job_data.get('job_url_direct') or job_data.get('job_url')
-                scraped_job = ScrapedJob(
-                    job_hash=job_hash,
-                    job_url=job_url,
-                    title=job_data.get('title', ''),
-                    company=job_data.get('company', ''),
-                    location=job_data.get('location'),
-                    site=job_data.get('site', 'indeed'),
-                    description=job_data.get('description'),
-                    job_type=job_data.get('job_type'),
-                    is_remote=job_data.get('is_remote'),
-                    min_amount=job_data.get('min_amount'),
-                    max_amount=job_data.get('max_amount'),
-                    salary_interval=job_data.get('interval', 'yearly'),
-                    currency=job_data.get('currency', 'USD'),
-                    date_posted=date_posted,
-                    min_experience_years=min_exp,
-                    max_experience_years=max_exp,
-                    target_company_id=target_company_id,
-                    scraping_run_id=scraping_run_id
-                )
-                
+            except Exception:
+                # If the check fails, proceed to try insert and handle IntegrityError
+                pass
+
+            # Extract experience years
+            min_exp, max_exp = self.extract_experience_years(
+                job_data.get('description', '')
+            )
+
+            # Parse date_posted
+            date_posted = None
+            if job_data.get('date_posted'):
+                try:
+                    if isinstance(job_data['date_posted'], str):
+                        date_posted = datetime.fromisoformat(job_data['date_posted'])
+                    elif isinstance(job_data['date_posted'], datetime):
+                        date_posted = job_data['date_posted']
+                    else:
+                        # JobSpy often returns date objects
+                        from datetime import date
+                        if isinstance(job_data['date_posted'], date):
+                            date_posted = datetime.combine(job_data['date_posted'], datetime.min.time())
+                except Exception as e:
+                    print(f"Failed to parse date_posted: {job_data.get('date_posted')} - {e}")
+                    date_posted = None
+
+            # Create new job record - use direct apply URL if available
+            job_url = job_data.get('job_url_direct') or job_data.get('job_url')
+            scraped_job = ScrapedJob(
+                job_hash=job_hash,
+                job_url=job_url,
+                title=job_data.get('title', ''),
+                company=job_data.get('company', ''),
+                location=job_data.get('location'),
+                site=job_data.get('site', 'indeed'),
+                description=job_data.get('description'),
+                job_type=job_data.get('job_type'),
+                is_remote=job_data.get('is_remote'),
+                min_amount=job_data.get('min_amount'),
+                max_amount=job_data.get('max_amount'),
+                salary_interval=job_data.get('interval', 'yearly'),
+                currency=job_data.get('currency', 'USD'),
+                date_posted=date_posted,
+                min_experience_years=min_exp,
+                max_experience_years=max_exp,
+                target_company_id=target_company_id,
+                scraping_run_id=scraping_run_id
+            )
+
+            try:
                 db.add(scraped_job)
+                db.commit()
                 new_jobs_count += 1
-                
+            except IntegrityError as ie:
+                # Unique violation (duplicate hash) or similar
+                db.rollback()
+                duplicate_jobs_count += 1
             except Exception as e:
+                # Unexpected error on this row, rollback and continue
+                db.rollback()
                 print(f"❌ Error storing job: {str(e)}")
                 continue
-        
-        try:
-            db.commit()
-            print(f"💾 Stored {new_jobs_count} new jobs, skipped {duplicate_jobs_count} duplicates")
-        except Exception as e:
-            db.rollback()
-            print(f"❌ Error committing jobs to database: {str(e)}")
-            raise
-        
+
+        print(f"💾 Stored {new_jobs_count} new jobs, skipped {duplicate_jobs_count} duplicates")
         return new_jobs_count, duplicate_jobs_count
     
     async def bulk_scrape_companies(
@@ -474,7 +482,9 @@ class JobScrapingService:
                 results_wanted = request.results_per_company or 1000
                 hours_old = request.hours_old or 72
 
-                company_jobs: List[Dict[str, Any]] = []
+                # In-memory dedup structure for this company to avoid duplicate inserts
+                company_unique_map: Dict[str, Dict[str, Any]] = {}
+                company_jobs: List[Dict[str, Any]] = []  # will be filled from the map
                 company_analytics: Dict[str, int] = {}
 
                 # Set total terms for display (terms x locations)
@@ -527,6 +537,7 @@ class JobScrapingService:
                             )
 
                             found_count = 0
+                            newly_added_this_step = 0
                             if jobs_df is not None and not jobs_df.empty:
                                 # Filter by company name permissively
                                 company_parts = company_name.lower().strip().split()
@@ -542,7 +553,16 @@ class JobScrapingService:
                                                 job[key] = None
                                         job['scraped_search_term'] = term
                                         job['scraped_location'] = location
-                                    company_jobs.extend(jobs_list)
+                                    # In-memory dedup by URL or title-company-location
+                                    for job in jobs_list:
+                                        job_url = job.get('job_url') or job.get('job_url_direct')
+                                        if job_url and isinstance(job_url, str) and job_url.strip():
+                                            key = f"url::{job_url.strip()}"
+                                        else:
+                                            key = f"tcl::{(job.get('title') or '').strip().lower()}|{(job.get('company') or '').strip().lower()}|{(job.get('location') or '').strip().lower()}"
+                                        if key not in company_unique_map:
+                                            company_unique_map[key] = job
+                                            newly_added_this_step += 1
                                     found_count = len(jobs_list)
 
                             # Update analytics and progress
@@ -550,7 +570,8 @@ class JobScrapingService:
                             company_analytics[search_key] = found_count
                             scraping_run.current_progress.update({
                                 "last_step_found": found_count,
-                                "jobs_found_current_company": scraping_run.current_progress.get("jobs_found_current_company", 0) + found_count
+                                # count only newly added (deduped) jobs for company progress
+                                "jobs_found_current_company": scraping_run.current_progress.get("jobs_found_current_company", 0) + newly_added_this_step
                             })
                             db.commit()
                             if found_count:
@@ -566,14 +587,23 @@ class JobScrapingService:
                     if scraping_run.current_progress.get("company_timeout"):
                         break
 
-                # Store results for this company
+                # Store results for this company (values of dedup map)
+                company_jobs = list(company_unique_map.values())
                 if company_jobs:
-                    new_jobs, duplicates = self.store_jobs_in_database(
-                        jobs=company_jobs,
-                        db=db,
-                        target_company_id=target_company.id,
-                        scraping_run_id=scraping_run.id
-                    )
+                    try:
+                        new_jobs, duplicates = self.store_jobs_in_database(
+                            jobs=company_jobs,
+                            db=db,
+                            target_company_id=target_company.id,
+                            scraping_run_id=scraping_run.id
+                        )
+                    except Exception as e:
+                        # If a unique violation slips through (race/parallel), continue gracefully
+                        print(f"  ⚠️ Insert error (continuing): {str(e)}")
+                        db.rollback()
+                        # Recompute counts conservatively
+                        new_jobs = 0
+                        duplicates = len(company_jobs)
 
                     total_jobs_found += len(company_jobs)
                     total_new_jobs += new_jobs
