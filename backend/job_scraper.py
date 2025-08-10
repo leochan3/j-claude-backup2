@@ -392,6 +392,238 @@ class JobScrapingService:
             raise
         
         return scraping_run
+
+    async def bulk_scrape_companies_with_progress(
+        self,
+        request: BulkScrapingRequest,
+        db: Session,
+        scraping_run: ScrapingRun,
+        company_timeout_seconds: int = 900
+    ) -> None:
+        """Scrape companies with real-time progress updates and per-company timeout.
+
+        Updates scraping_run.current_progress, totals, and analytics as it proceeds.
+        """
+        start_time = scraping_run.started_at
+        if start_time and start_time.tzinfo is None:
+            start_time = start_time.replace(tzinfo=timezone.utc)
+
+        total_jobs_found = 0
+        total_new_jobs = 0
+        total_duplicates = 0
+        all_company_analytics: Dict[str, Dict[str, int]] = {}
+
+        try:
+            total_companies = len(request.company_names)
+            for company_index, company_name in enumerate(request.company_names, start=1):
+                company_start = datetime.now(timezone.utc)
+
+                # Initialize/Update progress for this company
+                scraping_run.current_progress = {
+                    "phase": "processing_company",
+                    "total_companies": total_companies,
+                    "completed_companies": company_index - 1,
+                    "current_company": company_name,
+                    "current_company_index": company_index,
+                    "current_search_term": None,
+                    "current_location": None,
+                    "term_index": 0,
+                    "total_terms": 0,
+                    "jobs_found_current_company": 0,
+                    "company_elapsed_seconds": 0,
+                    "company_timeout": False
+                }
+                db.commit()
+
+                print(f"\n🏢 Processing company: {company_name}")
+
+                # Get or create target company
+                target_company = db.query(TargetCompany).filter(
+                    TargetCompany.name.ilike(f"%{company_name}%")
+                ).first()
+
+                if not target_company:
+                    target_company = TargetCompany(
+                        name=company_name,
+                        display_name=company_name,
+                        preferred_sites=request.sites,
+                        search_terms=request.search_terms,
+                        location_filters=request.locations
+                    )
+                    db.add(target_company)
+                    db.commit()
+
+                # Prepare terms
+                if not request.search_terms:
+                    terms = [
+                        "software engineer", "developer", "data scientist",
+                        "product manager", "analyst", "designer"
+                    ]
+                elif len(request.search_terms) == 1 and request.search_terms[0].lower().strip() in ["all", "*", "all jobs"]:
+                    terms = getattr(request, 'comprehensive_terms', None) or [
+                        "tech", "analyst", "manager", "product", "engineer", "market",
+                        "finance", "business", "associate", "senior", "director",
+                        "president", "lead", "data", "science", "software", "cloud",
+                        "developer", "staff", "program", "quality", "security", "specialist"
+                    ]
+                else:
+                    terms = request.search_terms
+
+                locations = request.locations or ["USA", "Remote", "United States"]
+                sites = request.sites or ["indeed"]
+                results_wanted = request.results_per_company or 1000
+                hours_old = request.hours_old or 72
+
+                company_jobs: List[Dict[str, Any]] = []
+                company_analytics: Dict[str, int] = {}
+
+                # Set total terms for display (terms x locations)
+                total_term_steps = len(terms) * len(locations)
+                scraping_run.current_progress.update({
+                    "total_terms": total_term_steps
+                })
+                db.commit()
+
+                step_counter = 0
+                # Iterate locations and terms
+                for location in locations:
+                    for term in terms:
+                        step_counter += 1
+                        # Check timeout
+                        company_elapsed = int((datetime.now(timezone.utc) - company_start).total_seconds())
+                        if company_elapsed > company_timeout_seconds:
+                            scraping_run.current_progress.update({
+                                "phase": "company_timeout",
+                                "company_elapsed_seconds": company_elapsed,
+                                "company_timeout": True
+                            })
+                            db.commit()
+                            print(f"⏱️ Timeout reached for {company_name}, skipping remaining steps")
+                            break
+
+                        # Update progress for this step
+                        scraping_run.current_progress.update({
+                            "phase": "searching",
+                            "current_search_term": term,
+                            "current_location": location,
+                            "term_index": step_counter,
+                            "company_elapsed_seconds": company_elapsed
+                        })
+                        db.commit()
+
+                        # Build full search term with company
+                        full_search = f"{term} {company_name}" if term.strip() else company_name
+                        try:
+                            print(f"  📍 Searching: '{full_search}' in {location}")
+                            jobs_df = await asyncio.to_thread(
+                                scrape_jobs,
+                                site_name=sites,
+                                search_term=full_search,
+                                location=location,
+                                results_wanted=results_wanted,
+                                hours_old=hours_old,
+                                country_indeed="USA",
+                                verbose=1
+                            )
+
+                            found_count = 0
+                            if jobs_df is not None and not jobs_df.empty:
+                                # Filter by company name permissively
+                                company_parts = company_name.lower().strip().split()
+                                mask = jobs_df['company'].str.lower().str.contains('|'.join(company_parts), na=False, regex=True)
+                                jobs_df = jobs_df[mask]
+
+                                if not jobs_df.empty:
+                                    jobs_list = jobs_df.to_dict('records')
+                                    # Clean NaNs and add metadata
+                                    for job in jobs_list:
+                                        for key, value in job.items():
+                                            if pd.isna(value):
+                                                job[key] = None
+                                        job['scraped_search_term'] = term
+                                        job['scraped_location'] = location
+                                    company_jobs.extend(jobs_list)
+                                    found_count = len(jobs_list)
+
+                            # Update analytics and progress
+                            search_key = f"{term}@{location}"
+                            company_analytics[search_key] = found_count
+                            scraping_run.current_progress.update({
+                                "last_step_found": found_count,
+                                "jobs_found_current_company": scraping_run.current_progress.get("jobs_found_current_company", 0) + found_count
+                            })
+                            db.commit()
+                            if found_count:
+                                print(f"  ✅ Found {found_count} jobs")
+                            else:
+                                print(f"  ❌ No jobs found")
+
+                        except Exception as e:
+                            print(f"  ❌ Error: {str(e)}")
+                            continue
+
+                    # If timeout on inner loop, break outer too
+                    if scraping_run.current_progress.get("company_timeout"):
+                        break
+
+                # Store results for this company
+                if company_jobs:
+                    new_jobs, duplicates = self.store_jobs_in_database(
+                        jobs=company_jobs,
+                        db=db,
+                        target_company_id=target_company.id,
+                        scraping_run_id=scraping_run.id
+                    )
+
+                    total_jobs_found += len(company_jobs)
+                    total_new_jobs += new_jobs
+                    total_duplicates += duplicates
+
+                    # Update company stats
+                    target_company.last_scraped = datetime.now(timezone.utc)
+                    target_company.total_jobs_found = db.query(ScrapedJob).filter(
+                        ScrapedJob.target_company_id == target_company.id,
+                        ScrapedJob.is_active == True
+                    ).count()
+
+                # Save analytics per company
+                all_company_analytics[company_name] = company_analytics
+
+                # Update running totals and mark company completed
+                scraping_run.total_jobs_found = total_jobs_found
+                scraping_run.new_jobs_added = total_new_jobs
+                scraping_run.duplicate_jobs_skipped = total_duplicates
+                scraping_run.current_progress.update({
+                    "phase": "company_completed",
+                    "completed_companies": company_index,
+                })
+                db.commit()
+
+                # Small delay for visibility
+                await asyncio.sleep(1)
+
+            # Finalize run
+            scraping_run.status = "completed"
+            scraping_run.completed_at = datetime.now(timezone.utc)
+            scraping_run.duration_seconds = int((scraping_run.completed_at - start_time).total_seconds())
+            scraping_run.search_analytics = all_company_analytics
+            scraping_run.current_progress = {
+                "phase": "completed",
+                "total_companies": total_companies,
+                "completed_companies": total_companies,
+            }
+            db.commit()
+            print("\n🎉 Background scraping completed!")
+
+        except Exception as e:
+            scraping_run.status = "failed"
+            scraping_run.error_message = str(e)
+            scraping_run.completed_at = datetime.now(timezone.utc)
+            scraping_run.current_progress = {
+                "phase": "failed",
+                "error": str(e)
+            }
+            db.commit()
     
     def search_local_jobs(
         self, 

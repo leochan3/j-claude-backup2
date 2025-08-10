@@ -2509,6 +2509,8 @@ async def get_scraping_progress(
         "progress": getattr(run, "current_progress", None),
         "total_jobs_found": run.total_jobs_found or 0,
         "new_jobs_added": run.new_jobs_added or 0,
+        "duplicate_jobs_skipped": run.duplicate_jobs_skipped or 0,
+        "search_analytics": run.search_analytics or {},
         "started_at": run.started_at,
         "completed_at": run.completed_at,
         "duration_seconds": run.duration_seconds
@@ -2709,16 +2711,27 @@ async def migrate_database_schema(db: Session = Depends(get_db)):
     """Migrate database schema to add missing columns (admin only)"""
     try:
         from sqlalchemy import text, inspect
-        
-        # Check if search_analytics column exists
+
         inspector = inspect(db.bind)
         columns = [col['name'] for col in inspector.get_columns('scraping_runs')]
-        
+
+        added = []
+
         if 'search_analytics' not in columns:
-            # Add the missing column
             db.execute(text("ALTER TABLE scraping_runs ADD COLUMN search_analytics JSON"))
+            added.append('search_analytics')
+
+        # Refresh columns list before next check
+        inspector = inspect(db.bind)
+        columns = [col['name'] for col in inspector.get_columns('scraping_runs')]
+
+        if 'current_progress' not in columns:
+            db.execute(text("ALTER TABLE scraping_runs ADD COLUMN current_progress JSON"))
+            added.append('current_progress')
+
+        if added:
             db.commit()
-            return {"success": True, "message": "Added search_analytics column"}
+            return {"success": True, "message": f"Added columns: {', '.join(added)}"}
         else:
             return {"success": True, "message": "Schema already up to date"}
             

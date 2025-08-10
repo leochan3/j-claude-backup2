@@ -224,7 +224,11 @@ Remote</textarea>
                                 // Build progress display
                                 let progressText = `🔄 Scraping Progress (Run ID: ${runId})\n`;
                                 progressText += `Status: ${status}\n`;
-                                progressText += `Started: ${new Date(progressData.started_at).toLocaleString()}\n\n`;
+                                progressText += `Started: ${new Date(progressData.started_at).toLocaleString()}\n`;
+                                if (progress.company_elapsed_seconds != null) {
+                                    progressText += `Company Elapsed: ${progress.company_elapsed_seconds}s\n`;
+                                }
+                                progressText += `\n`;
                                 
                                 if (progress.phase) {
                                     progressText += `Phase: ${progress.phase}\n`;
@@ -238,7 +242,7 @@ Remote</textarea>
                                 }
                                 
                                 if (progress.current_company) {
-                                    progressText += `Current Company: ${progress.current_company}\n`;
+                                    progressText += `Current Company: ${progress.current_company} (${progress.current_company_index || '?'} of ${progress.total_companies || '?'})\n`;
                                 }
                                 
                                 if (progress.current_search_term) {
@@ -249,8 +253,11 @@ Remote</textarea>
                                     progressText += `Current Location: ${progress.current_location}\n`;
                                 }
                                 
-                                progressText += `\nJobs Found: ${progressData.total_jobs_found || 0}\n`;
-                                progressText += `New Jobs: ${progressData.new_jobs_added || 0}\n`;
+                                progressText += `\nJobs Found (total): ${progressData.total_jobs_found || 0}\n`;
+                                progressText += `New Jobs (total): ${progressData.new_jobs_added || 0}\n`;
+                                if (typeof progress.jobs_found_current_company === 'number') {
+                                    progressText += `Jobs Found (current company): ${progress.jobs_found_current_company}\n`;
+                                }
                                 
                                 if (progressData.duration_seconds) {
                                     progressText += `Duration: ${progressData.duration_seconds}s\n`;
