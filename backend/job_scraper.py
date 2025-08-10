@@ -475,7 +475,13 @@ class JobScrapingService:
                         "developer", "staff", "program", "quality", "security", "specialist"
                     ]
                 else:
-                    terms = request.search_terms
+                    terms = request.search_terms.copy() if request.search_terms else []
+
+                # Always add company name as a search term for more targeted results
+                company_term = company_name.lower().strip()
+                if company_term not in [term.lower().strip() for term in terms]:
+                    terms.append(company_name)
+                    print(f"🎯 Added company name '{company_name}' as search term")
 
                 locations = request.locations or ["USA", "Remote", "United States"]
                 sites = request.sites or ["indeed"]

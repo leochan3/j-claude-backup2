@@ -27,7 +27,8 @@ from models import (
     AuthenticatedJobSearchRequest,
     TargetCompanyCreate, TargetCompanyUpdate, TargetCompanyResponse,
     ScrapedJobResponse, ScrapedJobSearchRequest, ScrapedJobSearchResponse,
-    ScrapingRunCreate, ScrapingRunResponse, BulkScrapingRequest
+    ScrapingRunCreate, ScrapingRunResponse, BulkScrapingRequest,
+    ComprehensiveTermsCreate, ComprehensiveTermsResponse
 )
 from auth import authenticate_user, create_access_token, get_current_active_user, ACCESS_TOKEN_EXPIRE_MINUTES
 from user_service import UserService
@@ -2830,6 +2831,63 @@ async def remove_old_jobs_public(db: Session = Depends(get_db)):
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Error removing old jobs: {str(e)}")
+
+@app.get("/admin/comprehensive-terms-public")
+async def get_comprehensive_terms_public():
+    """Get current comprehensive search terms (public endpoint for admin UI)"""
+    try:
+        # For now, store in a simple JSON file
+        terms_file = "comprehensive_terms.json"
+        
+        if os.path.exists(terms_file):
+            with open(terms_file, 'r') as f:
+                data = json.load(f)
+                return {
+                    "success": True,
+                    "terms": data.get("terms", get_default_comprehensive_terms()),
+                    "updated_at": data.get("updated_at")
+                }
+        else:
+            # Return default terms
+            return {
+                "success": True,
+                "terms": get_default_comprehensive_terms(),
+                "updated_at": None
+            }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error loading comprehensive terms: {str(e)}")
+
+@app.post("/admin/comprehensive-terms-public")
+async def save_comprehensive_terms_public(terms_data: ComprehensiveTermsCreate):
+    """Save comprehensive search terms (public endpoint for admin UI)"""
+    try:
+        terms_file = "comprehensive_terms.json"
+        
+        data = {
+            "terms": terms_data.terms,
+            "updated_at": datetime.now().isoformat()
+        }
+        
+        with open(terms_file, 'w') as f:
+            json.dump(data, f, indent=2)
+        
+        return {
+            "success": True,
+            "message": f"Successfully saved {len(terms_data.terms)} comprehensive search terms",
+            "terms": terms_data.terms,
+            "updated_at": data["updated_at"]
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error saving comprehensive terms: {str(e)}")
+
+def get_default_comprehensive_terms():
+    """Get default comprehensive search terms"""
+    return [
+        "tech", "analyst", "manager", "product", "engineer", "market", 
+        "finance", "business", "associate", "senior", "director", 
+        "president", "lead", "data", "science", "software", "cloud", 
+        "developer", "staff", "program", "quality", "security", "specialist"
+    ]
 
 @app.post("/admin/migrate-schema")
 async def migrate_database_schema(db: Session = Depends(get_db)):

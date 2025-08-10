@@ -338,3 +338,14 @@ class BulkScrapingRequest(BaseModel):
     results_per_company: Optional[int] = 1000
     hours_old: Optional[int] = 72  # 3 days
     comprehensive_terms: Optional[List[str]] = []
+
+# Comprehensive Search Terms Models
+class ComprehensiveTermsCreate(BaseModel):
+    terms: List[str]
+
+class ComprehensiveTermsResponse(BaseModel):
+    terms: List[str]
+    updated_at: datetime
+    
+    class Config:
+        from_attributes = True

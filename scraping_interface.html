@@ -70,7 +70,8 @@
             
             <div class="form-group">
                 <label for="comprehensiveTerms">Comprehensive Search Terms (used when 'all' is selected):</label>
-                <textarea id="comprehensiveTerms" placeholder="Edit these terms to customize comprehensive search...">tech
+                <div style="display: flex; gap: 10px; align-items: flex-end;">
+                    <textarea id="comprehensiveTerms" placeholder="Edit these terms to customize comprehensive search..." style="flex: 1;">tech
 analyst
 manager
 product
@@ -93,6 +94,8 @@ program
 quality
 security
 specialist</textarea>
+                    <button type="button" id="saveDefaultTerms" style="background: #28a745; width: auto; min-width: 150px;">💾 Save as Default</button>
+                </div>
             </div>
             
             <div class="form-group">
@@ -418,6 +421,70 @@ python backend/main.py`;
                 alert('✅ Analytics history cleared');
             }
         }
+
+        // Comprehensive Terms Management
+        async function loadSavedComprehensiveTerms() {
+            try {
+                const apiBase = window.location.hostname === 'localhost' 
+                    ? 'http://localhost:8000' 
+                    : `https://${window.location.hostname}`;
+                    
+                const response = await fetch(`${apiBase}/admin/comprehensive-terms-public`);
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.success && data.terms) {
+                        document.getElementById('comprehensiveTerms').value = data.terms.join('\n');
+                    }
+                } else {
+                    console.log('No saved comprehensive terms found, using defaults');
+                }
+            } catch (error) {
+                console.error('Error loading comprehensive terms:', error);
+            }
+        }
+
+        async function saveComprehensiveTermsAsDefault() {
+            const termsText = document.getElementById('comprehensiveTerms').value;
+            const terms = termsText.split('\n')
+                .map(t => t.trim())
+                .filter(t => t);
+                
+            if (terms.length === 0) {
+                alert('Please enter at least one search term');
+                return;
+            }
+            
+            try {
+                const apiBase = window.location.hostname === 'localhost' 
+                    ? 'http://localhost:8000' 
+                    : `https://${window.location.hostname}`;
+                    
+                const response = await fetch(`${apiBase}/admin/comprehensive-terms-public`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ terms: terms })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.success) {
+                    alert(`✅ Successfully saved ${terms.length} comprehensive search terms as default!`);
+                } else {
+                    alert(`❌ Error saving terms: ${data.message || 'Unknown error'}`);
+                }
+            } catch (error) {
+                alert(`❌ Network error saving terms: ${error.message}`);
+            }
+        }
+
+        // Load saved terms on page load and set up save button
+        document.addEventListener('DOMContentLoaded', function() {
+            loadSavedComprehensiveTerms();
+            
+            document.getElementById('saveDefaultTerms').addEventListener('click', saveComprehensiveTermsAsDefault);
+        });
     </script>
 </body>
 </html>
