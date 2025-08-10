@@ -28,7 +28,8 @@ from models import (
     TargetCompanyCreate, TargetCompanyUpdate, TargetCompanyResponse,
     ScrapedJobResponse, ScrapedJobSearchRequest, ScrapedJobSearchResponse,
     ScrapingRunCreate, ScrapingRunResponse, BulkScrapingRequest,
-    ComprehensiveTermsCreate, ComprehensiveTermsResponse
+    ComprehensiveTermsCreate, ComprehensiveTermsResponse,
+    ScrapingDefaultsCreate, ScrapingDefaultsResponse
 )
 from auth import authenticate_user, create_access_token, get_current_active_user, ACCESS_TOKEN_EXPIRE_MINUTES
 from user_service import UserService
@@ -2398,16 +2399,18 @@ async def get_database_stats_public(db: Session = Depends(get_db)):
         total_runs = db.query(ScrapingRun).count()
         successful_runs = db.query(ScrapingRun).filter(ScrapingRun.status == "completed").count()
         
-        # Top companies by job count (all jobs)
+        # Top companies by job count (all jobs) - show companies with 10+ jobs
         from sqlalchemy import func
         top_companies = db.query(
             ScrapedJob.company,
             func.count(ScrapedJob.id).label('job_count')
         ).filter(
             ScrapedJob.is_active == True
-        ).group_by(ScrapedJob.company).order_by(
+        ).group_by(ScrapedJob.company).having(
+            func.count(ScrapedJob.id) >= 10
+        ).order_by(
             func.count(ScrapedJob.id).desc()
-        ).limit(10).all()
+        ).limit(20).all()
         
         return {
             "success": True,
@@ -2436,16 +2439,41 @@ async def get_database_stats_public(db: Session = Depends(get_db)):
 async def get_target_companies_public(db: Session = Depends(get_db)):
     """Get all target companies without authentication (for admin frontend)."""
     try:
+        from sqlalchemy import func
+        
+        # Get all active companies first
         companies = db.query(TargetCompany).filter(
             TargetCompany.is_active == True
         ).order_by(TargetCompany.name).all()
         
+        # Calculate actual job counts for each company and filter out 0-job companies
+        company_responses = []
+        for company in companies:
+            # Count actual jobs for this company
+            actual_job_count = db.query(func.count(ScrapedJob.id)).filter(
+                ScrapedJob.company.ilike(f'%{company.name}%'),
+                ScrapedJob.is_active == True
+            ).scalar() or 0
+            
+            # Only include companies that have jobs
+            if actual_job_count > 0:
+                # Update the company's job count
+                company.total_jobs_found = actual_job_count
+                
+                # Create response object
+                company_response = TargetCompanyResponse.from_orm(company)
+                company_responses.append(company_response)
+        
+        # Commit any updates
+        db.commit()
+        
         return {
             "success": True,
-            "companies": [TargetCompanyResponse.from_orm(company) for company in companies],
-            "total_count": len(companies)
+            "companies": company_responses,
+            "total_count": len(company_responses)
         }
     except Exception as e:
+        db.rollback()
         raise HTTPException(
             status_code=500,
             detail=f"Error getting companies: {str(e)}"
@@ -2723,17 +2751,36 @@ async def delete_job_public(job_id: str, db: Session = Depends(get_db)):
 async def delete_company_jobs_public(company_name: str, db: Session = Depends(get_db)):
     """Delete all jobs for a specific company (public endpoint for admin UI)"""
     try:
-        jobs = db.query(ScrapedJob).filter(ScrapedJob.company.ilike(f"%{company_name}%")).all()
+        # Find all jobs for this company
+        jobs = db.query(ScrapedJob).filter(
+            ScrapedJob.company.ilike(f"%{company_name}%"),
+            ScrapedJob.is_active == True
+        ).all()
+        
         if not jobs:
-            raise HTTPException(status_code=404, detail=f"No jobs found for company '{company_name}'")
+            raise HTTPException(status_code=404, detail=f"No active jobs found for company '{company_name}'")
         
         job_count = len(jobs)
+        
+        # Delete all jobs for this company
         for job in jobs:
             db.delete(job)
         
+        # Update the target company's job count to 0
+        target_company = db.query(TargetCompany).filter(
+            TargetCompany.name.ilike(f"%{company_name}%")
+        ).first()
+        
+        if target_company:
+            target_company.total_jobs_found = 0
+        
         db.commit()
         
-        return {"success": True, "message": f"Deleted {job_count} jobs for company '{company_name}'"}
+        return {
+            "success": True, 
+            "message": f"Deleted {job_count} jobs for company '{company_name}'",
+            "deleted_count": job_count
+        }
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Error deleting company jobs: {str(e)}")
@@ -2888,6 +2935,90 @@ def get_default_comprehensive_terms():
         "president", "lead", "data", "science", "software", "cloud", 
         "developer", "staff", "program", "quality", "security", "specialist"
     ]
+
+@app.get("/admin/scraping-defaults-public")
+async def get_scraping_defaults_public():
+    """Get current scraping default settings (public endpoint for admin UI)"""
+    try:
+        defaults_file = "scraping_defaults.json"
+        
+        if os.path.exists(defaults_file):
+            with open(defaults_file, 'r') as f:
+                data = json.load(f)
+                return {
+                    "success": True,
+                    "companies": data.get("companies"),
+                    "search_terms": data.get("search_terms"),
+                    "locations": data.get("locations"),
+                    "results_per_company": data.get("results_per_company"),
+                    "hours_old": data.get("hours_old"),
+                    "updated_at": data.get("updated_at")
+                }
+        else:
+            # Return empty defaults
+            return {
+                "success": True,
+                "companies": None,
+                "search_terms": None,
+                "locations": None,
+                "results_per_company": None,
+                "hours_old": None,
+                "updated_at": None
+            }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error loading scraping defaults: {str(e)}")
+
+@app.post("/admin/scraping-defaults-public")
+async def save_scraping_defaults_public(defaults_data: ScrapingDefaultsCreate):
+    """Save scraping default settings (public endpoint for admin UI)"""
+    try:
+        defaults_file = "scraping_defaults.json"
+        
+        # Load existing data if it exists
+        existing_data = {}
+        if os.path.exists(defaults_file):
+            with open(defaults_file, 'r') as f:
+                existing_data = json.load(f)
+        
+        # Update only the fields that are provided (not None)
+        data = existing_data.copy()
+        if defaults_data.companies is not None:
+            data["companies"] = defaults_data.companies
+        if defaults_data.search_terms is not None:
+            data["search_terms"] = defaults_data.search_terms
+        if defaults_data.locations is not None:
+            data["locations"] = defaults_data.locations
+        if defaults_data.results_per_company is not None:
+            data["results_per_company"] = defaults_data.results_per_company
+        if defaults_data.hours_old is not None:
+            data["hours_old"] = defaults_data.hours_old
+        
+        data["updated_at"] = datetime.now().isoformat()
+        
+        with open(defaults_file, 'w') as f:
+            json.dump(data, f, indent=2)
+        
+        # Build response message
+        updated_fields = []
+        if defaults_data.companies is not None:
+            updated_fields.append(f"companies ({len(defaults_data.companies)} items)")
+        if defaults_data.search_terms is not None:
+            updated_fields.append(f"search terms ({len(defaults_data.search_terms)} items)")
+        if defaults_data.locations is not None:
+            updated_fields.append(f"locations ({len(defaults_data.locations)} items)")
+        if defaults_data.results_per_company is not None:
+            updated_fields.append(f"results per company ({defaults_data.results_per_company})")
+        if defaults_data.hours_old is not None:
+            updated_fields.append(f"hours old ({defaults_data.hours_old})")
+        
+        return {
+            "success": True,
+            "message": f"Successfully saved defaults for: {', '.join(updated_fields)}",
+            "updated_fields": updated_fields,
+            "updated_at": data["updated_at"]
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error saving scraping defaults: {str(e)}")
 
 @app.post("/admin/migrate-schema")
 async def migrate_database_schema(db: Session = Depends(get_db)):

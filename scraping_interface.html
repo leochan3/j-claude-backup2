@@ -60,12 +60,18 @@
         <form id="scrapingForm">
             <div class="form-group">
                 <label for="companies">Companies to Scrape (one per line):</label>
-                <textarea id="companies" placeholder="Google&#10;Microsoft&#10;Amazon&#10;Apple&#10;Meta" required></textarea>
+                <div style="display: flex; gap: 10px; align-items: flex-end;">
+                    <textarea id="companies" placeholder="Google&#10;Microsoft&#10;Amazon&#10;Apple&#10;Meta" required style="flex: 1;"></textarea>
+                    <button type="button" id="saveDefaultCompanies" style="background: #28a745; width: auto; min-width: 150px;">💾 Save as Default</button>
+                </div>
             </div>
             
             <div class="form-group">
                 <label for="searchTerms">Search Terms (one per line):</label>
-                <textarea id="searchTerms" placeholder="Leave EMPTY for default comprehensive search&#10;OR type 'all' to use comprehensive term list below&#10;OR specify custom terms:&#10;software engineer&#10;data scientist&#10;product manager">all</textarea>
+                <div style="display: flex; gap: 10px; align-items: flex-end;">
+                    <textarea id="searchTerms" placeholder="Leave EMPTY for default comprehensive search&#10;OR type 'all' to use comprehensive term list below&#10;OR specify custom terms:&#10;software engineer&#10;data scientist&#10;product manager" style="flex: 1;">all</textarea>
+                    <button type="button" id="saveDefaultSearchTerms" style="background: #28a745; width: auto; min-width: 150px;">💾 Save as Default</button>
+                </div>
             </div>
             
             <div class="form-group">
@@ -100,8 +106,11 @@ specialist</textarea>
             
             <div class="form-group">
                 <label for="locations">Locations (one per line):</label>
-                <textarea id="locations" placeholder="USA&#10;Remote&#10;San Francisco, CA">USA
+                <div style="display: flex; gap: 10px; align-items: flex-end;">
+                    <textarea id="locations" placeholder="USA&#10;Remote&#10;San Francisco, CA" style="flex: 1;">USA
 Remote</textarea>
+                    <button type="button" id="saveDefaultLocations" style="background: #28a745; width: auto; min-width: 150px;">💾 Save as Default</button>
+                </div>
             </div>
             
             <div class="form-group">
@@ -115,12 +124,18 @@ Remote</textarea>
             
             <div class="form-group">
                 <label for="resultsPerCompany">Results per Company:</label>
-                <input type="number" id="resultsPerCompany" value="1000" min="10" max="1000">
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <input type="number" id="resultsPerCompany" value="1000" min="10" max="1000" style="flex: 1;">
+                    <button type="button" id="saveDefaultResultsPerCompany" style="background: #28a745; width: auto; min-width: 150px;">💾 Save as Default</button>
+                </div>
             </div>
             
             <div class="form-group">
                 <label for="hoursOld">Max Hours Old (72 = 3 days):</label>
-                <input type="number" id="hoursOld" value="72" min="24" max="8760">
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <input type="number" id="hoursOld" value="72" min="24" max="8760" style="flex: 1;">
+                    <button type="button" id="saveDefaultHoursOld" style="background: #28a745; width: auto; min-width: 150px;">💾 Save as Default</button>
+                </div>
             </div>
             
             <button type="submit" id="scrapeButton">🚀 Start Scraping</button>
@@ -479,11 +494,139 @@ python backend/main.py`;
             }
         }
 
-        // Load saved terms on page load and set up save button
+        // Scraping Defaults Management
+        async function loadSavedScrapingDefaults() {
+            try {
+                const apiBase = window.location.hostname === 'localhost' 
+                    ? 'http://localhost:8000' 
+                    : `https://${window.location.hostname}`;
+                    
+                const response = await fetch(`${apiBase}/admin/scraping-defaults-public`);
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.success) {
+                        // Load saved defaults if they exist
+                        if (data.companies && data.companies.length > 0) {
+                            document.getElementById('companies').value = data.companies.join('\n');
+                        }
+                        if (data.search_terms && data.search_terms.length > 0) {
+                            document.getElementById('searchTerms').value = data.search_terms.join('\n');
+                        }
+                        if (data.locations && data.locations.length > 0) {
+                            document.getElementById('locations').value = data.locations.join('\n');
+                        }
+                        if (data.results_per_company !== null) {
+                            document.getElementById('resultsPerCompany').value = data.results_per_company;
+                        }
+                        if (data.hours_old !== null) {
+                            document.getElementById('hoursOld').value = data.hours_old;
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading scraping defaults:', error);
+            }
+        }
+
+        async function saveScrapingDefault(fieldType, value) {
+            try {
+                const apiBase = window.location.hostname === 'localhost' 
+                    ? 'http://localhost:8000' 
+                    : `https://${window.location.hostname}`;
+                
+                let requestData = {};
+                
+                switch(fieldType) {
+                    case 'companies':
+                        requestData.companies = value.split('\n').map(c => c.trim()).filter(c => c);
+                        break;
+                    case 'search_terms':
+                        requestData.search_terms = value.split('\n').map(s => s.trim()).filter(s => s);
+                        break;
+                    case 'locations':
+                        requestData.locations = value.split('\n').map(l => l.trim()).filter(l => l);
+                        break;
+                    case 'results_per_company':
+                        requestData.results_per_company = parseInt(value);
+                        break;
+                    case 'hours_old':
+                        requestData.hours_old = parseInt(value);
+                        break;
+                }
+                    
+                const response = await fetch(`${apiBase}/admin/scraping-defaults-public`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(requestData)
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.success) {
+                    alert(`✅ Successfully saved default ${fieldType.replace('_', ' ')}!`);
+                } else {
+                    alert(`❌ Error saving default: ${data.message || 'Unknown error'}`);
+                }
+            } catch (error) {
+                alert(`❌ Network error saving default: ${error.message}`);
+            }
+        }
+
+        // Load saved terms on page load and set up save buttons
         document.addEventListener('DOMContentLoaded', function() {
             loadSavedComprehensiveTerms();
+            loadSavedScrapingDefaults();
             
+            // Comprehensive terms save button
             document.getElementById('saveDefaultTerms').addEventListener('click', saveComprehensiveTermsAsDefault);
+            
+            // All other field save buttons
+            document.getElementById('saveDefaultCompanies').addEventListener('click', function() {
+                const value = document.getElementById('companies').value;
+                if (!value.trim()) {
+                    alert('Please enter at least one company');
+                    return;
+                }
+                saveScrapingDefault('companies', value);
+            });
+            
+            document.getElementById('saveDefaultSearchTerms').addEventListener('click', function() {
+                const value = document.getElementById('searchTerms').value;
+                if (!value.trim()) {
+                    alert('Please enter at least one search term');
+                    return;
+                }
+                saveScrapingDefault('search_terms', value);
+            });
+            
+            document.getElementById('saveDefaultLocations').addEventListener('click', function() {
+                const value = document.getElementById('locations').value;
+                if (!value.trim()) {
+                    alert('Please enter at least one location');
+                    return;
+                }
+                saveScrapingDefault('locations', value);
+            });
+            
+            document.getElementById('saveDefaultResultsPerCompany').addEventListener('click', function() {
+                const value = document.getElementById('resultsPerCompany').value;
+                if (!value || parseInt(value) < 10 || parseInt(value) > 1000) {
+                    alert('Please enter a valid number between 10 and 1000');
+                    return;
+                }
+                saveScrapingDefault('results_per_company', value);
+            });
+            
+            document.getElementById('saveDefaultHoursOld').addEventListener('click', function() {
+                const value = document.getElementById('hoursOld').value;
+                if (!value || parseInt(value) < 24 || parseInt(value) > 8760) {
+                    alert('Please enter a valid number between 24 and 8760 hours');
+                    return;
+                }
+                saveScrapingDefault('hours_old', value);
+            });
         });
     </script>
 </body>

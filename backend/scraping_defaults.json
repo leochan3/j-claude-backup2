@@ -1,0 +1,36 @@
+{
+  "companies": [
+    "Charles Schwab",
+    "Fidelity",
+    "CapitalOne",
+    "Bank of New York Mellon",
+    "HSBC",
+    "UBS",
+    "Barclays",
+    "Sofi",
+    "Plaid",
+    "Robinhood",
+    "Blackrock",
+    "Vanguard",
+    "Credit Suisse",
+    "Deutsche bank",
+    "Discover Financial Services",
+    "TD Bank",
+    "Walmart",
+    "Wayfair",
+    "Chewy",
+    "Disney",
+    "Lyft",
+    "Doordash",
+    "Tiktok",
+    "ByteDance",
+    "Tencent",
+    "Johnson & Johnson",
+    "Pfizer"
+  ],
+  "updated_at": "2025-08-10T14:44:01.706256",
+  "locations": [
+    "USA"
+  ],
+  "hours_old": 720
+}

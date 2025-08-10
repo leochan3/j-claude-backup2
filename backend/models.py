@@ -349,3 +349,22 @@ class ComprehensiveTermsResponse(BaseModel):
     
     class Config:
         from_attributes = True
+
+# Scraping Default Settings Models
+class ScrapingDefaultsCreate(BaseModel):
+    companies: Optional[List[str]] = None
+    search_terms: Optional[List[str]] = None
+    locations: Optional[List[str]] = None
+    results_per_company: Optional[int] = None
+    hours_old: Optional[int] = None
+
+class ScrapingDefaultsResponse(BaseModel):
+    companies: Optional[List[str]]
+    search_terms: Optional[List[str]]
+    locations: Optional[List[str]]
+    results_per_company: Optional[int]
+    hours_old: Optional[int]
+    updated_at: datetime
+    
+    class Config:
+        from_attributes = True
