@@ -377,6 +377,7 @@ async def root():
         "frontends": [
             "/app - Main Job Search Interface",
             "/admin - 🛠️ Unified Admin Dashboard (All admin tools in one place)",
+            "/admin/migration - 🔄 Database Migration Dashboard (SQLite to PostgreSQL)",
             "/database-viewer - Database Viewer (Admin)",
             "/scraping-interface - Job Scraping Interface (Admin)",
             "/user-management - User Management (Admin)",
@@ -401,6 +402,9 @@ async def root():
             "/database-stats-public - Database statistics (public for admin UI)",
             "/target-companies-public - Get companies (public for admin UI)",
             "/scrape-bulk-public - Bulk scrape jobs (public for admin UI)",
+            "/admin/migrate-data - Migrate local SQLite to production PostgreSQL",
+            "/admin/migration-stats - Get migration statistics and preview",
+            "/admin/local-db-stats - Get local database statistics",
             "/supported-sites - Get supported job sites",
             "/supported-countries - Get supported countries",
             "/health - Health check"
