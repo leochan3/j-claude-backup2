@@ -2801,8 +2801,8 @@ async def migrate_local_to_production(
         if not migrator.verify_connections():
             raise HTTPException(status_code=400, detail="Database connection verification failed")
         
-        # Run migration
-        results = migrator.run_full_migration(dry_run=dry_run)
+        # Run migration (skip confirmation when called via API)
+        results = migrator.run_full_migration(dry_run=dry_run, skip_confirmation=True)
         
         if 'error' in results:
             raise HTTPException(status_code=500, detail=f"Migration failed: {results['error']}")

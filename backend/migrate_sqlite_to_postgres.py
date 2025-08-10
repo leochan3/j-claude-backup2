@@ -407,7 +407,7 @@ class DatabaseMigrator:
         
         return migrated_count, skipped_count
     
-    def run_full_migration(self, dry_run: bool = False) -> Dict[str, Any]:
+    def run_full_migration(self, dry_run: bool = False, skip_confirmation: bool = False) -> Dict[str, Any]:
         """Run complete migration process"""
         print(f"🚀 Starting {'DRY RUN' if dry_run else 'ACTUAL'} migration...")
         start_time = datetime.now()
@@ -422,7 +422,7 @@ class DatabaseMigrator:
         print(f"  SQLite Users: {stats['sqlite_users']:,}")
         print(f"  SQLite Scraping Runs: {stats['sqlite_scraping_runs']:,}")
         
-        if not dry_run:
+        if not dry_run and not skip_confirmation:
             confirm = input("\n❓ Proceed with migration? (y/N): ")
             if confirm.lower() != 'y':
                 print("❌ Migration cancelled by user")
