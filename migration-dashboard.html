@@ -474,16 +474,14 @@
                 showStatus('Testing database connection...', 'info');
                 
                 // Test with a dry run migration call
-                const response = await fetch(`${API_BASE}/admin/migrate-data`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        postgres_url: postgresUrl,
-                        dry_run: true,
-                        batch_size: 10
-                    })
+                const params = new URLSearchParams({
+                    postgres_url: postgresUrl,
+                    dry_run: 'true',
+                    batch_size: '10'
+                });
+                
+                const response = await fetch(`${API_BASE}/admin/migrate-data?${params}`, {
+                    method: 'POST'
                 });
 
                 const data = await response.json();
@@ -491,9 +489,12 @@
                 if (response.ok && data.success) {
                     showStatus('✅ Database connection successful!', 'success');
                 } else {
-                    showStatus(`❌ Connection failed: ${data.detail || data.message}`, 'error');
+                    const errorMsg = data.detail || data.message || data.error || 'Unknown error';
+                    console.error('Connection test error:', data);
+                    showStatus(`❌ Connection failed: ${errorMsg}`, 'error');
                 }
             } catch (error) {
+                console.error('Connection test exception:', error);
                 showStatus(`❌ Connection test failed: ${error.message}`, 'error');
             }
         }
@@ -532,16 +533,14 @@
                 showStatus(isDryRun ? 'Starting migration simulation...' : 'Starting migration...', 'info');
                 updateProgress(0, 'Initializing migration...');
 
-                const response = await fetch(`${API_BASE}/admin/migrate-data`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        postgres_url: postgresUrl,
-                        dry_run: isDryRun,
-                        batch_size: batchSize
-                    })
+                const params = new URLSearchParams({
+                    postgres_url: postgresUrl,
+                    dry_run: isDryRun.toString(),
+                    batch_size: batchSize.toString()
+                });
+                
+                const response = await fetch(`${API_BASE}/admin/migrate-data?${params}`, {
+                    method: 'POST'
                 });
 
                 const data = await response.json();
