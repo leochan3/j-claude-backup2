@@ -2737,6 +2737,58 @@ async def delete_company_jobs_public(company_name: str, db: Session = Depends(ge
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Error deleting company jobs: {str(e)}")
 
+@app.post("/admin/remove-duplicates-public")
+async def remove_duplicate_jobs_public(db: Session = Depends(get_db)):
+    """Remove duplicate jobs based on job_url (public endpoint for admin UI)"""
+    try:
+        # Find duplicates by job_url
+        # Keep the most recent job for each URL and delete the rest
+        from sqlalchemy import func
+        
+        # First, find all job_urls that have duplicates
+        duplicate_urls = db.query(ScrapedJob.job_url).filter(
+            ScrapedJob.job_url.isnot(None),
+            ScrapedJob.job_url != ''
+        ).group_by(ScrapedJob.job_url).having(
+            func.count(ScrapedJob.id) > 1
+        ).all()
+        
+        if not duplicate_urls:
+            return {
+                "success": True,
+                "message": "No duplicates found",
+                "duplicates_removed": 0
+            }
+        
+        duplicate_urls = [url[0] for url in duplicate_urls]
+        total_removed = 0
+        
+        # For each duplicate URL, keep only the most recent job
+        for job_url in duplicate_urls:
+            jobs_with_url = db.query(ScrapedJob).filter(
+                ScrapedJob.job_url == job_url
+            ).order_by(ScrapedJob.date_scraped.desc()).all()
+            
+            # Keep the first (most recent) and delete the rest
+            jobs_to_delete = jobs_with_url[1:]  # Skip the first one
+            
+            for job in jobs_to_delete:
+                db.delete(job)
+                total_removed += 1
+        
+        db.commit()
+        
+        return {
+            "success": True,
+            "message": f"Successfully removed {total_removed} duplicate jobs from {len(duplicate_urls)} unique URLs",
+            "duplicates_removed": total_removed,
+            "unique_urls_processed": len(duplicate_urls)
+        }
+        
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error removing duplicates: {str(e)}")
+
 @app.post("/admin/migrate-schema")
 async def migrate_database_schema(db: Session = Depends(get_db)):
     """Migrate database schema to add missing columns (admin only)"""
