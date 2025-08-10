@@ -29,21 +29,25 @@ from database import (
 class DatabaseMigrator:
     """Handles migration from SQLite to PostgreSQL"""
     
-    def __init__(self, sqlite_path: str, postgres_url: str, batch_size: int = 1000):
+    def __init__(self, sqlite_path: str, postgres_url: str = None, batch_size: int = 1000):
         self.batch_size = batch_size
         
         # SQLite connection
         self.sqlite_engine = create_engine(f"sqlite:///{sqlite_path}")
         self.SqliteSession = sessionmaker(bind=self.sqlite_engine)
         
-        # PostgreSQL connection
-        if postgres_url.startswith("postgresql://"):
-            postgres_url = postgres_url.replace("postgresql://", "postgresql+psycopg://", 1)
-        self.postgres_engine = create_engine(postgres_url)
-        self.PostgresSession = sessionmaker(bind=self.postgres_engine)
+        # PostgreSQL connection (optional for stats-only operations)
+        if postgres_url:
+            if postgres_url.startswith("postgresql://"):
+                postgres_url = postgres_url.replace("postgresql://", "postgresql+psycopg://", 1)
+            self.postgres_engine = create_engine(postgres_url)
+            self.PostgresSession = sessionmaker(bind=self.postgres_engine)
+            print(f"🔗 PostgreSQL target: {postgres_url[:50]}...")
+        else:
+            self.postgres_engine = None
+            self.PostgresSession = None
         
         print(f"🔗 SQLite source: {sqlite_path}")
-        print(f"🔗 PostgreSQL target: {postgres_url[:50]}...")
     
     def verify_connections(self) -> bool:
         """Test both database connections"""
@@ -63,8 +67,29 @@ class DatabaseMigrator:
             print(f"❌ Connection test failed: {e}")
             return False
     
+    def get_local_stats(self) -> Dict[str, Any]:
+        """Get statistics about local SQLite database only"""
+        stats = {}
+        
+        sqlite_session = self.SqliteSession()
+        
+        try:
+            # Count records in SQLite
+            stats['sqlite_jobs'] = sqlite_session.query(ScrapedJob).count()
+            stats['sqlite_companies'] = sqlite_session.query(TargetCompany).count()
+            stats['sqlite_scraping_runs'] = sqlite_session.query(ScrapingRun).count()
+            stats['sqlite_users'] = sqlite_session.query(User).count()
+            
+        finally:
+            sqlite_session.close()
+        
+        return stats
+
     def get_migration_stats(self) -> Dict[str, Any]:
         """Get statistics about what needs to be migrated"""
+        if not self.PostgresSession:
+            raise ValueError("PostgreSQL connection required for migration stats")
+            
         stats = {}
         
         sqlite_session = self.SqliteSession()
