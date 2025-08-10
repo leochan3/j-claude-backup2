@@ -155,6 +155,8 @@
             <button onclick="loadStats()">🔄 Refresh Stats</button>
             <button onclick="loadCompanies()">🏢 View Companies</button>
             <button onclick="showSearchForm()">🔍 Search Jobs</button>
+            <button onclick="removeDuplicates()" style="background: #dc3545;">🗑️ Remove Duplicates</button>
+            <button onclick="removeOldJobs()" style="background: #fd7e14;">🗓️ Remove Jobs >30 Days</button>
         </div>
     </div>
 
@@ -443,6 +445,62 @@
 
             } catch (error) {
                 alert(`Error deleting company jobs: ${error.message}`);
+            }
+        }
+
+        async function removeDuplicates() {
+            if (!confirm('⚠️ This will remove duplicate jobs based on job URL, keeping only the most recent version of each job. This action cannot be undone. Continue?')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE}/admin/remove-duplicates-public`, {
+                    method: 'POST'
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    alert(`✅ Success!\n\n${data.message}\n\nDuplicates removed: ${data.duplicates_removed}\nUnique URLs processed: ${data.unique_urls_processed}`);
+                    // Refresh stats to show updated counts
+                    loadStats();
+                    // If companies are visible, refresh them too
+                    if (document.getElementById('companiesSection').style.display !== 'none') {
+                        loadCompanies();
+                    }
+                } else {
+                    alert(`❌ Error: ${data.message || 'Unknown error'}`);
+                }
+            } catch (error) {
+                alert(`❌ Error removing duplicates: ${error.message}`);
+            }
+        }
+
+        async function removeOldJobs() {
+            if (!confirm('⚠️ This will permanently remove all jobs older than 30 days (based on posted date). This will make your dashboard counts match search results. This action cannot be undone. Continue?')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE}/admin/remove-old-jobs-public`, {
+                    method: 'POST'
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    alert(`✅ Success!\n\n${data.message}\n\nJobs removed: ${data.jobs_removed}\n\nYour dashboard counts should now match search results!`);
+                    // Refresh stats to show updated counts
+                    loadStats();
+                    // If companies are visible, refresh them too
+                    if (document.getElementById('companiesSection').style.display !== 'none') {
+                        loadCompanies();
+                    }
+                } else {
+                    alert(`❌ Error: ${data.message || 'Unknown error'}`);
+                }
+            } catch (error) {
+                alert(`❌ Error removing old jobs: ${error.message}`);
             }
         }
 

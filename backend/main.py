@@ -2397,7 +2397,7 @@ async def get_database_stats_public(db: Session = Depends(get_db)):
         total_runs = db.query(ScrapingRun).count()
         successful_runs = db.query(ScrapingRun).filter(ScrapingRun.status == "completed").count()
         
-        # Top companies by job count
+        # Top companies by job count (all jobs)
         from sqlalchemy import func
         top_companies = db.query(
             ScrapedJob.company,
@@ -2788,6 +2788,48 @@ async def remove_duplicate_jobs_public(db: Session = Depends(get_db)):
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Error removing duplicates: {str(e)}")
+
+@app.post("/admin/remove-old-jobs-public")
+async def remove_old_jobs_public(db: Session = Depends(get_db)):
+    """Remove jobs older than 30 days (public endpoint for admin UI)"""
+    try:
+        from sqlalchemy import func
+        from datetime import datetime, timedelta, timezone
+        
+        # Calculate 30 days ago
+        thirty_days_ago = datetime.now(timezone.utc) - timedelta(days=30)
+        
+        # Find jobs older than 30 days
+        old_jobs = db.query(ScrapedJob).filter(
+            ScrapedJob.is_active == True,
+            ScrapedJob.date_posted.isnot(None),
+            ScrapedJob.date_posted < thirty_days_ago
+        ).all()
+        
+        if not old_jobs:
+            return {
+                "success": True,
+                "message": "No jobs older than 30 days found",
+                "jobs_removed": 0
+            }
+        
+        jobs_removed = len(old_jobs)
+        
+        # Remove old jobs
+        for job in old_jobs:
+            db.delete(job)
+        
+        db.commit()
+        
+        return {
+            "success": True,
+            "message": f"Successfully removed {jobs_removed} jobs older than 30 days",
+            "jobs_removed": jobs_removed
+        }
+        
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error removing old jobs: {str(e)}")
 
 @app.post("/admin/migrate-schema")
 async def migrate_database_schema(db: Session = Depends(get_db)):
