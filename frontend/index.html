@@ -1160,6 +1160,14 @@
                             💡 <strong>Leave empty to see all salaries</strong>
                         </small>
                     </div>
+                    <div class="form-group">
+                        <label for="expected-salary">Expected Salary (USD)</label>
+                        <input type="number" id="expected-salary" name="expected_salary" placeholder="e.g., 150000" step="5000" min="0">
+                        <small style="color: #666; font-size: 0.85rem; margin-top: 4px; display: block;">
+                            🎯 <strong>Boost ranking for salary matches:</strong> Jobs with salaries closer to this amount will rank higher<br>
+                            💡 <strong>Leave empty to ignore salary in ranking</strong>
+                        </small>
+                    </div>
 
                     <!-- New: Max Years of Experience filter -->
                     <div class="form-group">
@@ -1579,6 +1587,10 @@
                                 <div class="preference-group">
                                     <label>Max Salary Filter:</label>
                                     <input type="number" id="pref-max-salary" name="max_salary" placeholder="e.g., 200000" step="1000">
+                                </div>
+                                <div class="preference-group">
+                                    <label>Expected Salary (for ranking):</label>
+                                    <input type="number" id="pref-expected-salary" name="expected_salary" placeholder="e.g., 150000" step="5000">
                                 </div>
                             </div>
                             
@@ -2141,6 +2153,9 @@
             if (preferences.max_salary) {
                 document.getElementById('pref-max-salary').value = preferences.max_salary;
             }
+            if (preferences.expected_salary) {
+                document.getElementById('pref-expected-salary').value = preferences.expected_salary;
+            }
 
             document.getElementById('pref-remote').checked = preferences.default_remote || false;
             document.getElementById('pref-email-alerts').checked = preferences.email_notifications || false;
@@ -2177,6 +2192,9 @@
             if (preferences.max_salary) {
                 document.getElementById('max-salary').value = preferences.max_salary;
             }
+            if (preferences.expected_salary) {
+                document.getElementById('expected-salary').value = preferences.expected_salary;
+            }
 
             document.getElementById('is-remote').checked = preferences.default_remote || false;
 
@@ -2199,7 +2217,7 @@
             for (let [key, value] of formData.entries()) {
                 if (key !== 'preferred_sites') {
                     if (value.trim() !== '') {
-                        if (key === 'default_results_wanted' || key === 'max_salary') {
+                        if (key === 'default_results_wanted' || key === 'max_salary' || key === 'expected_salary') {
                             preferences[key] = parseInt(value);
                         } else {
                             preferences[key] = value;
@@ -2402,7 +2420,7 @@
                 // Handle regular form fields
                 for (let [key, value] of formData.entries()) {
                     if (key !== 'site_name' && value.trim() !== '') {
-                        if (key === 'results_wanted' || key === 'distance' || key === 'hours_old') {
+                        if (key === 'results_wanted' || key === 'distance' || key === 'hours_old' || key === 'max_salary' || key === 'expected_salary') {
                             searchData[key] = parseInt(value);
                         } else if (key === 'is_remote') {
                             searchData[key] = true;
@@ -2451,6 +2469,18 @@
                     delete searchData.company_filter;
                 }
                 
+                // Convert location to locations array for local search endpoints
+                if (searchData.location) {
+                    searchData.locations = [searchData.location];
+                    delete searchData.location;
+                }
+                
+                // Convert hours_old to days_old for backend compatibility
+                if (searchData.hours_old) {
+                    searchData.days_old = Math.ceil(searchData.hours_old / 24); // Convert hours to days (round up)
+                    delete searchData.hours_old;
+                }
+                
                 // Handle "all" keyword for search_term to get all jobs
                 if (searchData.search_term && searchData.search_term.toLowerCase().trim() === 'all') {
                     delete searchData.search_term; // Remove search_term to get all jobs
@@ -2495,9 +2525,14 @@
             }
         });
         
-        function calculateRelevanceScore(job, searchTerm) {
+        function calculateRelevanceScore(job, searchTerm, expectedSalary = null) {
             let score = 0;
             if (!searchTerm || !searchTerm.trim()) return 0;
+            
+            // Debug expected salary parameter
+            if (expectedSalary) {
+                console.log(`[SALARY DEBUG] Expected salary passed: $${expectedSalary}`);
+            }
             
             const title = (job.title || '').toLowerCase().trim();
             const description = (job.description || '').toLowerCase().trim();
@@ -2579,6 +2614,89 @@
                 score += 8;
             }
             
+            // 8. Salary matching bonus (significant impact)
+            if (expectedSalary && expectedSalary > 0) {
+                const minSalary = job.min_amount;
+                const maxSalary = job.max_amount;
+                
+                console.log(`[SALARY DEBUG] Job: "${job.title}" | Expected: $${expectedSalary} | Min: $${minSalary} | Max: $${maxSalary}`);
+                
+                if (minSalary && maxSalary) {
+                    // Calculate median salary for the job
+                    const medianJobSalary = (minSalary + maxSalary) / 2;
+                    
+                    // Calculate percentage difference between expected and median
+                    const salaryDiff = Math.abs(expectedSalary - medianJobSalary);
+                    const percentageDiff = salaryDiff / expectedSalary;
+                    
+                    // Salary matching bonus: up to 30 points for close matches
+                    let salaryBonus = 0;
+                    if (percentageDiff <= 0.10) {
+                        salaryBonus = 30; // Within 10% - excellent match
+                    } else if (percentageDiff <= 0.25) {
+                        salaryBonus = 25; // Within 25% - excellent match
+                    } else if (percentageDiff <= 0.40) {
+                        salaryBonus = 20; // Within 40% - very good match
+                    } else if (percentageDiff <= 0.60) {
+                        salaryBonus = 15; // Within 60% - good match
+                    } else if (percentageDiff <= 0.80) {
+                        salaryBonus = 10; // Within 80% - fair match
+                    } else if (percentageDiff <= 1.00) {
+                        salaryBonus = 5;  // Within 100% - some match
+                    }
+                    
+                    score += salaryBonus;
+                    console.log(`[SALARY DEBUG] Median: $${medianJobSalary} | Diff: ${(percentageDiff * 100).toFixed(1)}% | Bonus: +${salaryBonus}`);
+                    // Jobs with >100% salary difference get no salary bonus
+                } else if (minSalary || maxSalary) {
+                    // Only one salary bound available - use that for comparison
+                    const availableSalary = minSalary || maxSalary;
+                    const salaryDiff = Math.abs(expectedSalary - availableSalary);
+                    const percentageDiff = salaryDiff / expectedSalary;
+                    
+                    // Reduced bonus for partial salary data (up to 20 points)
+                    let partialSalaryBonus = 0;
+                    if (percentageDiff <= 0.25) {
+                        partialSalaryBonus = 20; // Within 25% with partial data - excellent
+                    } else if (percentageDiff <= 0.40) {
+                        partialSalaryBonus = 15; // Within 40% with partial data - very good
+                    } else if (percentageDiff <= 0.60) {
+                        partialSalaryBonus = 10; // Within 60% with partial data - good
+                    } else if (percentageDiff <= 0.80) {
+                        partialSalaryBonus = 5;  // Within 80% with partial data - fair
+                    }
+                    
+                    score += partialSalaryBonus;
+                    console.log(`[SALARY DEBUG] Available: $${availableSalary} | Diff: ${(percentageDiff * 100).toFixed(1)}% | Partial Bonus: +${partialSalaryBonus}`);
+                }
+                // Jobs with no salary data get no penalty (as requested)
+            }
+            
+            // 9. Recency bonus (newer posts get higher ranking)
+            if (job.date_posted) {
+                try {
+                    const postDate = new Date(job.date_posted);
+                    const now = new Date();
+                    const daysSincePosted = Math.floor((now - postDate) / (1000 * 60 * 60 * 24));
+                    
+                    // Recency bonus: max 15 points for posts within last week, declining over time
+                    if (daysSincePosted <= 1) {
+                        score += 15; // Posted within last day
+                    } else if (daysSincePosted <= 3) {
+                        score += 12; // Posted within last 3 days
+                    } else if (daysSincePosted <= 7) {
+                        score += 8;  // Posted within last week
+                    } else if (daysSincePosted <= 14) {
+                        score += 5;  // Posted within last 2 weeks
+                    } else if (daysSincePosted <= 30) {
+                        score += 2;  // Posted within last month
+                    }
+                    // Jobs older than 30 days get no recency bonus
+                } catch (error) {
+                    // Invalid date, skip recency bonus
+                }
+            }
+            
             return Math.round(score);
         }
 
@@ -2623,11 +2741,18 @@
             
             // Calculate relevance scores and sort by relevance
             const searchTerm = result.search_params?.search_term || '';
+            // Get expected salary from the original search form data instead of backend response
+            const expectedSalaryInput = document.getElementById('expected-salary').value;
+            const expectedSalary = expectedSalaryInput ? parseInt(expectedSalaryInput) : null;
+            
+            console.log(`[DEBUG] Full search_params:`, result.search_params);
+            console.log(`[DEBUG] Expected salary from form: ${expectedSalary}`);
+            
             if (searchTerm && searchTerm.trim()) {
-                console.log(`Calculating relevance scores for search term: "${searchTerm}"`);
+                console.log(`Calculating relevance scores for search term: "${searchTerm}"${expectedSalary ? ` and expected salary: $${expectedSalary.toLocaleString()}` : ''}`);
                 
                 salaryFilteredJobs.forEach(job => {
-                    job.relevanceScore = calculateRelevanceScore(job, searchTerm);
+                    job.relevanceScore = calculateRelevanceScore(job, searchTerm, expectedSalary);
                 });
                 
                 // Sort by relevance score (highest first), then by date if available

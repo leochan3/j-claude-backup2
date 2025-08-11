@@ -2148,7 +2148,8 @@ async def search_jobs_local_public(
             sites=request.sites,
             days_old=request.days_old,
             limit=request.limit,
-            offset=request.offset
+            offset=request.offset,
+            exclude_keywords=request.exclude_keywords
         )
         
         # Convert to response format

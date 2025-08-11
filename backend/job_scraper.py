@@ -675,7 +675,8 @@ class JobScrapingService:
         sites: List[str] = None,
         days_old: int = 30,
         limit: int = 100,
-        offset: int = 0
+        offset: int = 0,
+        exclude_keywords: str = None
     ) -> Tuple[List[ScrapedJob], int]:
         """Search jobs in local database."""
         
@@ -757,6 +758,16 @@ class JobScrapingService:
         # Site filter
         if sites:
             query = query.filter(ScrapedJob.site.in_(sites))
+        
+        # Exclude keywords filter
+        if exclude_keywords:
+            exclude_terms = [term.strip().lower() for term in exclude_keywords.split(',') if term.strip()]
+            if exclude_terms:
+                # Exclude jobs that contain any of the exclude terms in the title
+                exclude_filters = []
+                for term in exclude_terms:
+                    exclude_filters.append(~ScrapedJob.title.ilike(f'%{term}%'))
+                query = query.filter(and_(*exclude_filters))
         
         # Get total count
         total_count = query.count()
